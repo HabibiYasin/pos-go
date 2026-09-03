@@ -18,27 +18,36 @@ import (
 var DB *gorm.DB
 
 func ConnectDatabase() {
+	// Memuat .env jika tersedia.
+	// Di Render, konfigurasi akan dibaca dari Environment Variables.
+	_ = godotenv.Load()
 
-	// koneksi .env file
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Gagal memuat file .env")
-	}
-
-	// Ambil variabel dari .env
+	// Ambil environment variables
 	host := os.Getenv("DB_HOST")
 	port := os.Getenv("DB_PORT")
 	user := os.Getenv("DB_USER")
 	password := os.Getenv("DB_PASSWORD")
 	dbname := os.Getenv("DB_NAME")
 
-	// Format DSN
-	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable", host, user, password, dbname, port)
+	// Pastikan konfigurasi database sudah diisi
+	if host == "" || port == "" || user == "" || password == "" || dbname == "" {
+		log.Fatal("Konfigurasi database belum lengkap")
+	}
 
-	// koneksi ke database
+	// Supabase membutuhkan koneksi SSL
+	dsn := fmt.Sprintf(
+		"host=%s user=%s password=%s dbname=%s port=%s sslmode=require",
+		host,
+		user,
+		password,
+		dbname,
+		port,
+	)
+
+	// Koneksi ke database
 	database, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Fatal("Gagal terhubung ke database:", err)
+		log.Fatal("Gagal terhubung ke database: ", err)
 	}
 
 	log.Println("Berhasil terhubung ke database PostgreSQL")
@@ -52,7 +61,7 @@ func ConnectDatabase() {
 		&transaction_model.TransactionItem{},
 	)
 	if err != nil {
-		log.Fatal("Migrasi gagal:", err)
+		log.Fatal("Migrasi gagal: ", err)
 	}
 
 	log.Println("Migrasi tabel berhasil")
