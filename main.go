@@ -2,6 +2,8 @@ package main
 
 import (
 	"log"
+	"os"
+
 	"pos-go/config"
 	database "pos-go/database/migrations"
 	"pos-go/routes"
@@ -12,38 +14,33 @@ import (
 )
 
 func main() {
-	// Koneksi ke database
 	config.ConnectDatabase()
-
-	// Inisialisasi Midtrans
 	config.InitMidtrans()
-
-	// Migrasi seed database untuk admin awal
 	database.SeedAdmin()
 
-	// Set Gin mode (hilangkan debug mode warning) - HARUS SEBELUM gin.Default()
 	gin.SetMode(gin.ReleaseMode)
-
-	// Inisialisasi Gin
 	r := gin.Default()
 
-	// Static file handler untuk serve uploaded images
 	r.Static("/uploads", "./uploads")
 
-	// CORS Middleware
+	// Izinkan frontend lokal dan frontend online dari environment variable.
+	allowedOrigins := []string{"http://localhost:5173"}
+
+	if frontendURL := os.Getenv("FRONTEND_URL"); frontendURL != "" {
+		allowedOrigins = append(allowedOrigins, frontendURL)
+	}
+
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173"},
+		AllowOrigins:     allowedOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
-		AllowCredentials: true,      //untuk cookie!
-		MaxAge:           12 * 3600, // 12 jam
+		AllowCredentials: true,
+		MaxAge:           12 * 3600,
 	}))
 
-	// Set trusted proxies (hilangkan proxy warning)
 	r.SetTrustedProxies([]string{"127.0.0.1", "::1"})
 
-	// Setup routes
 	routes.AuthRoutes(r)
 	routes.CategoryRoutes(r)
 	routes.MenuRoutes(r)
@@ -53,6 +50,15 @@ func main() {
 		utils.SuccessResponseOK(c, "API sukses berjalan", nil)
 	})
 
-	log.Println("Server berjalan di http://localhost:8080")
-	r.Run(":8080")
+	// Render memberikan port melalui environment variable PORT.
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	log.Printf("Server berjalan di port %s", port)
+
+	if err := r.Run(":" + port); err != nil {
+		log.Fatal("Server gagal dijalankan:", err)
+	}
 }
