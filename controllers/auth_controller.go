@@ -124,21 +124,21 @@ func Login(c *gin.Context) {
 	// Set token di HTTP-only cookie (Hybrid approach)
 	isProduction := os.Getenv("APP_ENV") == "production"
 
+	sameSite := http.SameSiteLaxMode
 	if isProduction {
-		c.SetSameSite(http.SameSiteNoneMode)
-	} else {
-		c.SetSameSite(http.SameSiteLaxMode)
+		sameSite = http.SameSiteNoneMode
 	}
 
-	c.SetCookie(
-		"token",      // name
-		token,        // value
-		3600,         // max age (1 jam dalam detik)
-		"/",          // path
-		"",           // domain (kosong = current domain)
-		isProduction, // secure
-		true,         // httpOnly (true = tidak bisa diakses JavaScript)
-	)
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:        "token",
+		Value:       token,
+		MaxAge:      3600,
+		Path:        "/",
+		Secure:      isProduction,
+		HttpOnly:    true,
+		SameSite:    sameSite,
+		Partitioned: isProduction,
+	})
 
 	// Sukses login - return user (token sudah di cookie)
 	utils.SuccessResponseOK(c, "Login berhasil", gin.H{
