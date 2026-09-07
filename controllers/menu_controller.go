@@ -95,7 +95,15 @@ func CreateMenu(c *gin.Context) {
 }
 
 func GetAllMenus(c *gin.Context) {
-	menus, err := menuService.GetAllMenus()
+	role, _ := c.Get("role")
+
+	var menus interface{}
+	var err error
+	if role == "cashier" {
+		menus, err = menuService.GetPublicMenus()
+	} else {
+		menus, err = menuService.GetAllMenus()
+	}
 	if err != nil {
 		if errors.Is(err, services.ErrGetMenusFailed) {
 			utils.ErrorResponseInternal(c, "Gagal mengambil daftar menu")

@@ -10,8 +10,8 @@ import (
 func MenuRoutes(r *gin.Engine) {
 	menu := r.Group("/menu")
 	{
-		// Admin only - semua menu
-		menu.GET("", middleware.AuthMiddleware(), middleware.RequireRole("admin"), controllers.GetAllMenus)
+		// Admin melihat semua menu, kasir hanya melihat menu yang tersedia
+		menu.GET("", middleware.AuthMiddleware(), middleware.RequireRole("admin", "cashier"), controllers.GetAllMenus)
 
 		// Public - hanya menu yang available
 		menu.GET("/public", controllers.GetPublicMenus)
