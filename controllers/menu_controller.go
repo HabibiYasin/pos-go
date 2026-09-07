@@ -99,7 +99,7 @@ func GetAllMenus(c *gin.Context) {
 
 	var menus interface{}
 	var err error
-	if role == "cashier" {
+	if role == "kasir" {
 		menus, err = menuService.GetPublicMenus()
 	} else {
 		menus, err = menuService.GetAllMenus()
