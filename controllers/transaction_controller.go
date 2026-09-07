@@ -176,3 +176,33 @@ func GetTransactionByID(c *gin.Context) {
 
 	utils.SuccessResponseOK(c, "Berhasil mengambil data transaksi", transaction)
 }
+
+func UpdateTransactionStatus(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		utils.ErrorResponseBadRequest(c, "ID transaksi tidak valid", nil)
+		return
+	}
+
+	var req dto.UpdateTransactionStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorResponseBadRequest(c, "Status transaksi tidak valid", nil)
+		return
+	}
+	if req.PaymentStatus == "" && req.OrderStatus == "" {
+		utils.ErrorResponseBadRequest(c, "Minimal satu status harus diisi", nil)
+		return
+	}
+
+	transaction, err := transactionService.UpdateTransactionStatus(id, req.PaymentStatus, req.OrderStatus)
+	if err != nil {
+		if errors.Is(err, services.ErrTransactionNotFound) {
+			utils.ErrorResponseNotFound(c, "Transaksi tidak ditemukan")
+			return
+		}
+		utils.ErrorResponseInternal(c, "Gagal memperbarui status transaksi")
+		return
+	}
+
+	utils.SuccessResponseOK(c, "Status transaksi berhasil diperbarui", transaction)
+}

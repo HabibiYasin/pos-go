@@ -21,5 +21,8 @@ func TransactionRoutes(r *gin.Engine) {
 
 		// Admin & Kasir - lihat detail transaksi
 		transaction.GET("/:id", middleware.AuthMiddleware(), controllers.GetTransactionByID)
+
+		// Admin & Kasir - proses status pesanan
+		transaction.PATCH("/:id/status", middleware.AuthMiddleware(), middleware.RequireRole("admin", "kasir"), controllers.UpdateTransactionStatus)
 	}
 }

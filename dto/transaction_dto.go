@@ -13,6 +13,12 @@ type CreateTransactionRequest struct {
 	Items         []CreateTransactionItemRequest `json:"items" binding:"required,min=1,dive"`
 }
 
+// UpdateTransactionStatusRequest represents a cashier/admin status update.
+type UpdateTransactionStatusRequest struct {
+	PaymentStatus string `json:"payment_status" binding:"omitempty,oneof=pending paid cancelled expired"`
+	OrderStatus   string `json:"order_status" binding:"omitempty,oneof=pending processing completed cancelled"`
+}
+
 // CreateTransactionItemRequest represents an item in the transaction
 type CreateTransactionItemRequest struct {
 	MenuID   uuid.UUID `json:"menu_id" binding:"required"`
@@ -26,9 +32,9 @@ type TransactionResponse struct {
 	CustomerPhone string                    `json:"customer_phone"`
 	CustomerEmail string                    `json:"customer_email"`
 	TableNumber   *int                      `json:"table_number"`
-	Subtotal      float64                   `json:"subtotal"`      // Total sebelum pajak
-	Tax           float64                   `json:"tax"`           // Pajak PPN 10%
-	TotalAmount   float64                   `json:"total_amount"`  // Total setelah pajak
+	Subtotal      float64                   `json:"subtotal"`     // Total sebelum pajak
+	Tax           float64                   `json:"tax"`          // Pajak PPN 10%
+	TotalAmount   float64                   `json:"total_amount"` // Total setelah pajak
 	PaymentMethod string                    `json:"payment_method"`
 	PaymentStatus string                    `json:"payment_status"`
 	OrderStatus   string                    `json:"order_status"`
@@ -74,9 +80,9 @@ type TransactionResponseWithSnap struct {
 	CustomerPhone string                    `json:"customer_phone"`
 	CustomerEmail string                    `json:"customer_email"`
 	TableNumber   *int                      `json:"table_number"`
-	Subtotal      float64                   `json:"subtotal"`             // Total sebelum pajak
-	Tax           float64                   `json:"tax"`                  // Pajak PPN 10%
-	TotalAmount   float64                   `json:"total_amount"`         // Total setelah pajak
+	Subtotal      float64                   `json:"subtotal"`     // Total sebelum pajak
+	Tax           float64                   `json:"tax"`          // Pajak PPN 10%
+	TotalAmount   float64                   `json:"total_amount"` // Total setelah pajak
 	PaymentMethod string                    `json:"payment_method"`
 	PaymentStatus string                    `json:"payment_status"`
 	OrderStatus   string                    `json:"order_status"`
