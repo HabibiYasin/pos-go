@@ -76,10 +76,10 @@ func (s TransactionService) CreateTransaction(req dto.CreateTransactionRequest) 
 	var paymentStatus, orderStatus string
 	var expiredAt *time.Time
 
-	// LOGIC: Cash = langsung paid, Non-cash = pending
+	// Cash is paid immediately, but the order still needs cashier processing.
 	if req.PaymentMethod == "cash" {
 		paymentStatus = "paid"
-		orderStatus = "completed"
+		orderStatus = "pending"
 		// Cash tidak perlu expired time
 	} else {
 		paymentStatus = "pending"
