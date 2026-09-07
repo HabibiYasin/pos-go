@@ -2,6 +2,8 @@ package controllers
 
 import (
 	"errors"
+	"net/http"
+	"os"
 	"pos-go/dto"
 	"pos-go/services"
 	"pos-go/utils"
@@ -120,14 +122,22 @@ func Login(c *gin.Context) {
 	}
 
 	// Set token di HTTP-only cookie (Hybrid approach)
+	isProduction := os.Getenv("APP_ENV") == "production"
+
+	if isProduction {
+		c.SetSameSite(http.SameSiteNoneMode)
+	} else {
+		c.SetSameSite(http.SameSiteLaxMode)
+	}
+
 	c.SetCookie(
-		"token", // name
-		token,   // value
-		3600,    // max age (1 jam dalam detik)
-		"/",     // path
-		"",      // domain (kosong = current domain)
-		false,   // secure (set true jika pakai HTTPS)
-		true,    // httpOnly (true = tidak bisa diakses JavaScript)
+		"token",      // name
+		token,        // value
+		3600,         // max age (1 jam dalam detik)
+		"/",          // path
+		"",           // domain (kosong = current domain)
+		isProduction, // secure
+		true,         // httpOnly (true = tidak bisa diakses JavaScript)
 	)
 
 	// Sukses login - return user (token sudah di cookie)
