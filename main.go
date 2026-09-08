@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"strings"
 
 	"pos-go/config"
 	database "pos-go/database/migrations"
@@ -23,11 +24,22 @@ func main() {
 
 	r.Static("/uploads", "./uploads")
 
-	// Izinkan frontend lokal dan frontend online dari environment variable.
-	allowedOrigins := []string{"http://localhost:5173"}
+	// Izinkan frontend lokal dan domain produksi. FRONTEND_URLS dapat berisi
+	// beberapa origin yang dipisahkan koma untuk deployment lain.
+	allowedOrigins := []string{
+		"http://localhost:5173",
+		"https://pos.habibiyasin.my.id",
+	}
 
-	if frontendURL := os.Getenv("FRONTEND_URL"); frontendURL != "" {
-		allowedOrigins = append(allowedOrigins, frontendURL)
+	frontendURLs := os.Getenv("FRONTEND_URLS")
+	if frontendURLs == "" {
+		frontendURLs = os.Getenv("FRONTEND_URL")
+	}
+	for _, frontendURL := range strings.Split(frontendURLs, ",") {
+		frontendURL = strings.TrimRight(strings.TrimSpace(frontendURL), "/")
+		if frontendURL != "" && !containsOrigin(allowedOrigins, frontendURL) {
+			allowedOrigins = append(allowedOrigins, frontendURL)
+		}
 	}
 
 	r.Use(cors.New(cors.Config{
@@ -61,4 +73,13 @@ func main() {
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal("Server gagal dijalankan:", err)
 	}
+}
+
+func containsOrigin(origins []string, target string) bool {
+	for _, origin := range origins {
+		if origin == target {
+			return true
+		}
+	}
+	return false
 }
