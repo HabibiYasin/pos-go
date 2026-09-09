@@ -206,3 +206,39 @@ func UpdateTransactionStatus(c *gin.Context) {
 
 	utils.SuccessResponseOK(c, "Status transaksi berhasil diperbarui", transaction)
 }
+
+// UpdateLegacyOrderStatus keeps older frontend deployments compatible.
+func UpdateLegacyOrderStatus(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		utils.ErrorResponseBadRequest(c, "ID transaksi tidak valid", nil)
+		return
+	}
+
+	var req struct {
+		OrderStatus string `json:"order_status" binding:"required,oneof=pending cooking ready completed cancelled"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorResponseBadRequest(c, "Status transaksi tidak valid", nil)
+		return
+	}
+
+	orderStatus := req.OrderStatus
+	if orderStatus == "cooking" {
+		orderStatus = "processing"
+	} else if orderStatus == "ready" {
+		orderStatus = "completed"
+	}
+
+	transaction, err := transactionService.UpdateTransactionStatus(id, "", orderStatus)
+	if err != nil {
+		if errors.Is(err, services.ErrTransactionNotFound) {
+			utils.ErrorResponseNotFound(c, "Transaksi tidak ditemukan")
+			return
+		}
+		utils.ErrorResponseInternal(c, "Gagal memperbarui status transaksi")
+		return
+	}
+
+	utils.SuccessResponseOK(c, "Status transaksi berhasil diperbarui", transaction)
+}

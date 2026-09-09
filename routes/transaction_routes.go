@@ -22,7 +22,9 @@ func TransactionRoutes(r *gin.Engine) {
 		// Admin & Kasir - lihat detail transaksi
 		transaction.GET("/:id", middleware.AuthMiddleware(), controllers.GetTransactionByID)
 
-		// Admin & Kasir - proses status pesanan
-		transaction.PATCH("/:id/status", middleware.AuthMiddleware(), middleware.RequireRole("admin", "kasir"), controllers.UpdateTransactionStatus)
+		// Admin, Kasir & Koki - proses status pesanan
+		transaction.PATCH("/:id/status", middleware.AuthMiddleware(), middleware.RequireRole("admin", "kasir", "koki"), controllers.UpdateTransactionStatus)
+		// Compatibility for older frontend bundles.
+		transaction.PATCH("/:id/order-status", middleware.AuthMiddleware(), middleware.RequireRole("admin", "kasir", "koki"), controllers.UpdateLegacyOrderStatus)
 	}
 }
