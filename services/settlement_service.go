@@ -2,6 +2,8 @@ package services
 
 import (
 	"errors"
+	"math"
+	"os"
 	"pos-go/config"
 	"pos-go/dto"
 	settlement_model "pos-go/models/settlement_model"
@@ -14,6 +16,26 @@ import (
 )
 
 var ErrSettlementAlreadyExists = errors.New("Settlement untuk tanggal ini sudah ada")
+var ErrSettlementNotFound = errors.New("Settlement untuk tanggal ini belum ada")
+var ErrInvalidSettlementCash = errors.New("Jumlah uang tunai harus berupa angka valid, minimal 0")
+var ErrSettlementResetDisabled = errors.New("Reset settlement hanya tersedia dalam mode debugging")
+
+func SettlementDebugResetEnabled() bool {
+	// Enabled for this debugging deployment at the owner's request.
+	// Render can disable it immediately with SETTLEMENT_DEBUG_RESET=false.
+	value, configured := os.LookupEnv("SETTLEMENT_DEBUG_RESET")
+	if !configured {
+		return true
+	}
+	return value == "true"
+}
+
+func validateSettlementCash(value float64) error {
+	if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 || value > 9999999999999.99 {
+		return ErrInvalidSettlementCash
+	}
+	return nil
+}
 
 type SettlementService struct{}
 
@@ -37,6 +59,10 @@ func expectedCashFromTransactionsByUser(startOfDay, endOfDay time.Time, userID u
 
 // CreateSettlement menyimpan settlement (tutup kasir). Satu settlement per (date, user_id).
 func (s SettlementService) CreateSettlement(userID uuid.UUID, dateStr string, actualCash float64) (*dto.SettlementResponse, error) {
+	if err := validateSettlementCash(actualCash); err != nil {
+		return nil, err
+	}
+	actualCash = math.Round(actualCash*100) / 100
 	date, err := time.Parse("2006-01-02", dateStr)
 	if err != nil {
 		return nil, err
@@ -73,6 +99,59 @@ func (s SettlementService) CreateSettlement(userID uuid.UUID, dateStr string, ac
 	return toSettlementResponse(&settlement), nil
 }
 
+// UpdateSettlement replaces the total handed-in cash, scoped to the authenticated cashier.
+func (s SettlementService) UpdateSettlement(userID uuid.UUID, dateStr string, actualCash float64) (*dto.SettlementResponse, error) {
+	if err := validateSettlementCash(actualCash); err != nil {
+		return nil, err
+	}
+	date, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		return nil, err
+	}
+	expected, err := s.GetExpectedCashForDateAndUser(dateStr, userID)
+	if err != nil {
+		return nil, err
+	}
+	actualCash = math.Round(actualCash*100) / 100
+	var settlement settlement_model.Settlement
+	err = config.DB.Transaction(func(db *gorm.DB) error {
+		result := db.Model(&settlement_model.Settlement{}).
+			Where("date = ? AND user_id = ?", date, userID).
+			Updates(map[string]interface{}{"actual_cash": actualCash, "expected_cash": expected, "discrepancy": math.Round((actualCash-expected)*100) / 100})
+		if result.Error != nil {
+			return ErrDatabaseError
+		}
+		if result.RowsAffected == 0 {
+			return ErrSettlementNotFound
+		}
+		if err := db.Where("date = ? AND user_id = ?", date, userID).First(&settlement).Error; err != nil {
+			return ErrDatabaseError
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return toSettlementResponse(&settlement), nil
+}
+
+// ResetSettlement removes only this user's settlement, allowing automation to create it again.
+// Transactions and other cashiers' settlements are unaffected.
+func (s SettlementService) ResetSettlement(userID uuid.UUID, dateStr string) error {
+	if !SettlementDebugResetEnabled() {
+		return ErrSettlementResetDisabled
+	}
+	date, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		return err
+	}
+	// Hard delete also releases the unique (date, user_id) key for the next test run.
+	if err := config.DB.Unscoped().Where("date = ? AND user_id = ?", date, userID).Delete(&settlement_model.Settlement{}).Error; err != nil {
+		return ErrDatabaseError
+	}
+	return nil
+}
+
 // GetSettlementByDateAndUser mengembalikan settlement untuk tanggal dan user (kasir) tertentu. Nil jika belum ada.
 func (s SettlementService) GetSettlementByDateAndUser(dateStr string, userID uuid.UUID) (*dto.SettlementResponse, error) {
 	date, err := time.Parse("2006-01-02", dateStr)
@@ -102,8 +181,9 @@ func (s SettlementService) GetSettlementWithExpected(dateStr string, userID uuid
 		return nil, err
 	}
 	return &dto.GetSettlementResponse{
-		ExpectedCash: expectedCash,
-		Settlement:   settlement,
+		DebugResetEnabled: SettlementDebugResetEnabled(),
+		ExpectedCash:      expectedCash,
+		Settlement:        settlement,
 	}, nil
 }
 

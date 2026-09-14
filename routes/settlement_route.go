@@ -17,5 +17,7 @@ func SettlementRoutes(r *gin.Engine) {
 		settlement.GET("", middleware.RequireRole("admin", "kasir"), controllers.GetSettlement)
 		// POST /settlement — simpan settlement (tutup kasir). Kasir & Admin.
 		settlement.POST("", middleware.RequireRole("admin", "kasir"), controllers.CreateSettlement)
+		settlement.PUT("", middleware.RequireRole("admin", "kasir"), controllers.UpdateSettlement)
+		settlement.DELETE("/debug-reset", middleware.RequireRole("admin", "kasir"), controllers.ResetSettlement)
 	}
 }
