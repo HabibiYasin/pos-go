@@ -130,9 +130,11 @@ func Login(c *gin.Context) {
 		true,    // httpOnly (true = tidak bisa diakses JavaScript)
 	)
 
-	// Sukses login - return user (token sudah di cookie)
+	// Return token for clients that keep independent sessions per browser tab.
+	c.Header("Cache-Control", "no-store")
 	utils.SuccessResponseOK(c, "Login berhasil", gin.H{
-		"user": user,
+		"token": token,
+		"user":  user,
 	})
 }
 

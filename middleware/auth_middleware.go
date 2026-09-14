@@ -7,16 +7,18 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// getTokenFromRequest mengambil token dari Cookie "token" (untuk frontend) atau header Authorization: Bearer <token> (untuk Postman/API client).
+// Explicit Authorization takes precedence over legacy shared cookies, even when invalid.
 func getTokenFromRequest(c *gin.Context) string {
-	// 1. Cek cookie (frontend kirim otomatis dengan withCredentials)
+	if auth := c.GetHeader("Authorization"); auth != "" {
+		parts := strings.Fields(auth)
+		if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
+			return parts[1]
+		}
+		return ""
+	}
+	// Compatibility for clients that still use cookie authentication.
 	if token, err := c.Cookie("token"); err == nil && token != "" {
 		return token
-	}
-	// 2. Cek header Authorization: Bearer <token> (Postman / API client)
-	auth := c.GetHeader("Authorization")
-	if strings.HasPrefix(auth, "Bearer ") {
-		return strings.TrimSpace(auth[7:])
 	}
 	return ""
 }
