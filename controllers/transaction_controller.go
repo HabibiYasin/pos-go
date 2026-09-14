@@ -5,6 +5,7 @@ import (
 	"pos-go/dto"
 	"pos-go/services"
 	"pos-go/utils"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -49,7 +50,8 @@ func CreateTransaction(c *gin.Context) {
 			utils.ErrorResponseNotFound(c, "Menu tidak ditemukan atau tidak tersedia")
 			return
 		}
-		utils.ErrorResponseInternal(c, "Gagal membuat transaksi")
+		// Error dari Midtrans / token pembayaran: transaksi tidak disimpan ke DB
+		utils.ErrorResponseInternal(c, err.Error())
 		return
 	}
 
@@ -58,8 +60,10 @@ func CreateTransaction(c *gin.Context) {
 		ID:            transaction.ID,
 		CustomerName:  transaction.CustomerName,
 		CustomerPhone: transaction.CustomerPhone,
-		CustomerEmail: transaction.CustomerEmail,
+		OrderType:     transaction.OrderType,
 		TableNumber:   transaction.TableNumber,
+		PromoCode:     transaction.PromoCode,
+		Discount:      transaction.Discount,
 		Subtotal:      transaction.Subtotal,
 		Tax:           transaction.Tax,
 		TotalAmount:   transaction.TotalAmount,
@@ -120,7 +124,8 @@ func HandleMidtransNotification(c *gin.Context) {
 	switch notification.TransactionStatus {
 	case "capture", "settlement":
 		paymentStatus = "paid"
-		orderStatus = "completed"
+		// Tetap pending (antrian), sampai ada flow dapur/selesai
+		orderStatus = "pending"
 	case "pending":
 		paymentStatus = "pending"
 		orderStatus = "pending"
@@ -144,6 +149,31 @@ func HandleMidtransNotification(c *gin.Context) {
 	}
 
 	c.JSON(200, gin.H{"status": "success"})
+}
+
+// ConfirmCashPaid - kasir konfirmasi pembayaran tunai (closed_by_user_id diisi untuk laporan per kasir)
+func ConfirmCashPaid(c *gin.Context) {
+	idParam := c.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		utils.ErrorResponseBadRequest(c, "ID transaksi tidak valid", nil)
+		return
+	}
+
+	var closedByUserID *uuid.UUID
+	if uid, exists := c.Get("user_id"); exists && uid != nil {
+		if parsed, err := uuid.Parse(uid.(string)); err == nil {
+			closedByUserID = &parsed
+		}
+	}
+
+	tx, err := transactionService.ConfirmCashPaid(id, closedByUserID)
+	if err != nil {
+		utils.ErrorResponseBadRequest(c, err.Error(), nil)
+		return
+	}
+
+	utils.SuccessResponseOK(c, "Pembayaran tunai berhasil dikonfirmasi", tx)
 }
 
 func GetAllTransactions(c *gin.Context) {
@@ -177,68 +207,103 @@ func GetTransactionByID(c *gin.Context) {
 	utils.SuccessResponseOK(c, "Berhasil mengambil data transaksi", transaction)
 }
 
-func UpdateTransactionStatus(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
+// UpdateOrderStatus - kasir / koki update status pesanan dengan aturan per role
+func UpdateOrderStatus(c *gin.Context) {
+	idParam := c.Param("id")
+	id, err := uuid.Parse(idParam)
 	if err != nil {
 		utils.ErrorResponseBadRequest(c, "ID transaksi tidak valid", nil)
 		return
 	}
 
-	var req dto.UpdateTransactionStatusRequest
+	var req dto.UpdateOrderStatusRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorResponseBadRequest(c, "Status transaksi tidak valid", nil)
-		return
-	}
-	if req.PaymentStatus == "" && req.OrderStatus == "" {
-		utils.ErrorResponseBadRequest(c, "Minimal satu status harus diisi", nil)
+		utils.ErrorResponseBadRequest(c, "Format data tidak valid", nil)
 		return
 	}
 
-	transaction, err := transactionService.UpdateTransactionStatus(id, req.PaymentStatus, req.OrderStatus)
+	roleVal, exists := c.Get("role")
+	if !exists {
+		utils.ErrorResponseUnauthorized(c, "Role tidak ditemukan")
+		return
+	}
+	role, _ := roleVal.(string)
+
+	var closedByUserID *uuid.UUID
+	if role == "kasir" && req.OrderStatus == "completed" {
+		if uid, exists := c.Get("user_id"); exists && uid != nil {
+			if parsed, err := uuid.Parse(uid.(string)); err == nil {
+				closedByUserID = &parsed
+			}
+		}
+	}
+
+	tx, err := transactionService.UpdateOrderStatusForRole(id, role, req.OrderStatus, closedByUserID)
 	if err != nil {
 		if errors.Is(err, services.ErrTransactionNotFound) {
 			utils.ErrorResponseNotFound(c, "Transaksi tidak ditemukan")
 			return
 		}
-		utils.ErrorResponseInternal(c, "Gagal memperbarui status transaksi")
+		if errors.Is(err, services.ErrInvalidStatus) || strings.Contains(err.Error(), "belum berstatus paid") {
+			utils.ErrorResponseBadRequest(c, err.Error(), nil)
+			return
+		}
+		utils.ErrorResponseInternal(c, "Gagal mengubah status pesanan")
 		return
 	}
 
-	utils.SuccessResponseOK(c, "Status transaksi berhasil diperbarui", transaction)
+	utils.SuccessResponseOK(c, "Status pesanan berhasil diubah", tx)
 }
 
-// UpdateLegacyOrderStatus keeps older frontend deployments compatible.
-func UpdateLegacyOrderStatus(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
+// CancelOrder - kasir membatalkan pesanan (pending / cooking / ready -> cancelled)
+func CancelOrder(c *gin.Context) {
+	idParam := c.Param("id")
+	id, err := uuid.Parse(idParam)
 	if err != nil {
 		utils.ErrorResponseBadRequest(c, "ID transaksi tidak valid", nil)
 		return
 	}
 
-	var req struct {
-		OrderStatus string `json:"order_status" binding:"required,oneof=pending cooking ready completed cancelled"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.ErrorResponseBadRequest(c, "Status transaksi tidak valid", nil)
+	roleVal, exists := c.Get("role")
+	if !exists {
+		utils.ErrorResponseUnauthorized(c, "Role tidak ditemukan")
 		return
 	}
+	role, _ := roleVal.(string)
 
-	orderStatus := req.OrderStatus
-	if orderStatus == "cooking" {
-		orderStatus = "processing"
-	} else if orderStatus == "ready" {
-		orderStatus = "completed"
-	}
-
-	transaction, err := transactionService.UpdateTransactionStatus(id, "", orderStatus)
+	tx, err := transactionService.CancelOrder(id, role)
 	if err != nil {
 		if errors.Is(err, services.ErrTransactionNotFound) {
 			utils.ErrorResponseNotFound(c, "Transaksi tidak ditemukan")
 			return
 		}
-		utils.ErrorResponseInternal(c, "Gagal memperbarui status transaksi")
+		if errors.Is(err, services.ErrInvalidStatus) {
+			utils.ErrorResponseBadRequest(c, "Pesanan tidak dapat dibatalkan (status tidak sesuai atau sudah selesai)", nil)
+			return
+		}
+		utils.ErrorResponseInternal(c, "Gagal membatalkan pesanan")
 		return
 	}
 
-	utils.SuccessResponseOK(c, "Status transaksi berhasil diperbarui", transaction)
+	utils.SuccessResponseOK(c, "Pesanan berhasil dibatalkan", tx)
+}
+
+// GetTransactionReceipt returns receipt data for print (kasir/admin).
+func GetTransactionReceipt(c *gin.Context) {
+	idParam := c.Param("id")
+	id, err := uuid.Parse(idParam)
+	if err != nil {
+		utils.ErrorResponseBadRequest(c, "ID transaksi tidak valid", nil)
+		return
+	}
+	receipt, err := transactionService.GetTransactionReceipt(id)
+	if err != nil {
+		if errors.Is(err, services.ErrTransactionNotFound) {
+			utils.ErrorResponseNotFound(c, "Transaksi tidak ditemukan")
+			return
+		}
+		utils.ErrorResponseInternal(c, "Gagal mengambil data struk")
+		return
+	}
+	utils.SuccessResponseOK(c, "Data struk berhasil diambil", receipt)
 }

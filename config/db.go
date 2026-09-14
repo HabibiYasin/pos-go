@@ -7,6 +7,8 @@ import (
 
 	category_model "pos-go/models/category_model"
 	menu_model "pos-go/models/menu_model"
+	promo_model "pos-go/models/promo_model"
+	settlement_model "pos-go/models/settlement_model"
 	transaction_model "pos-go/models/transaction_model"
 	user_model "pos-go/models/user_model"
 
@@ -18,36 +20,32 @@ import (
 var DB *gorm.DB
 
 func ConnectDatabase() {
-	// Memuat .env jika tersedia.
-	// Di Render, konfigurasi akan dibaca dari Environment Variables.
+
+	// koneksi .env file
+	// Render supplies environment variables without a local .env file.
 	_ = godotenv.Load()
 
-	// Ambil environment variables
+	// Ambil variabel dari .env
 	host := os.Getenv("DB_HOST")
 	port := os.Getenv("DB_PORT")
 	user := os.Getenv("DB_USER")
 	password := os.Getenv("DB_PASSWORD")
 	dbname := os.Getenv("DB_NAME")
 
-	// Pastikan konfigurasi database sudah diisi
-	if host == "" || port == "" || user == "" || password == "" || dbname == "" {
-		log.Fatal("Konfigurasi database belum lengkap")
+	// Format DSN
+	sslmode := os.Getenv("DB_SSLMODE")
+	if sslmode == "" {
+		sslmode = "require"
+	}
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		dsn = fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s", host, user, password, dbname, port, sslmode)
 	}
 
-	// Supabase membutuhkan koneksi SSL
-	dsn := fmt.Sprintf(
-		"host=%s user=%s password=%s dbname=%s port=%s sslmode=require",
-		host,
-		user,
-		password,
-		dbname,
-		port,
-	)
-
-	// Koneksi ke database
+	// koneksi ke database
 	database, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Fatal("Gagal terhubung ke database: ", err)
+		log.Fatal("Gagal terhubung ke database:", err)
 	}
 
 	log.Println("Berhasil terhubung ke database PostgreSQL")
@@ -59,9 +57,11 @@ func ConnectDatabase() {
 		&menu_model.Menu{},
 		&transaction_model.Transaction{},
 		&transaction_model.TransactionItem{},
+		&promo_model.Promo{},
+		&settlement_model.Settlement{},
 	)
 	if err != nil {
-		log.Fatal("Migrasi gagal: ", err)
+		log.Fatal("Migrasi gagal:", err)
 	}
 
 	log.Println("Migrasi tabel berhasil")

@@ -95,15 +95,7 @@ func CreateMenu(c *gin.Context) {
 }
 
 func GetAllMenus(c *gin.Context) {
-	role, _ := c.Get("role")
-
-	var menus interface{}
-	var err error
-	if role == "kasir" {
-		menus, err = menuService.GetPublicMenus()
-	} else {
-		menus, err = menuService.GetAllMenus()
-	}
+	menus, err := menuService.GetAllMenus()
 	if err != nil {
 		if errors.Is(err, services.ErrGetMenusFailed) {
 			utils.ErrorResponseInternal(c, "Gagal mengambil daftar menu")
@@ -134,7 +126,7 @@ func UpdateMenu(c *gin.Context) {
 	menuID := c.Param("id")
 
 	// Bind form data (multipart/form-data)
-	var input dto.CreateMenuDTO
+	var input dto.UpdateMenuDTO
 
 	// Bind form fields
 	if err := c.ShouldBind(&input); err != nil {

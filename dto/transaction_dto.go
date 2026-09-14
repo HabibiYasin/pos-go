@@ -6,17 +6,12 @@ import "github.com/google/uuid"
 type CreateTransactionRequest struct {
 	CustomerName  string                         `json:"customer_name" binding:"required"`
 	CustomerPhone string                         `json:"customer_phone" binding:"required"`
-	CustomerEmail string                         `json:"customer_email" binding:"omitempty,email"`
+	OrderType     string                         `json:"order_type" binding:"required,oneof=dine_in take_away"`
 	TableNumber   *int                           `json:"table_number" binding:"omitempty"`
 	PaymentMethod string                         `json:"payment_method" binding:"required,oneof=cash credit_card debit_card e_wallet"`
 	Notes         string                         `json:"notes" binding:"omitempty"`
+	PromoCode     string                         `json:"promo_code" binding:"omitempty"`
 	Items         []CreateTransactionItemRequest `json:"items" binding:"required,min=1,dive"`
-}
-
-// UpdateTransactionStatusRequest represents a cashier/admin status update.
-type UpdateTransactionStatusRequest struct {
-	PaymentStatus string `json:"payment_status" binding:"omitempty,oneof=pending paid cancelled expired"`
-	OrderStatus   string `json:"order_status" binding:"omitempty,oneof=pending processing completed cancelled"`
 }
 
 // CreateTransactionItemRequest represents an item in the transaction
@@ -30,11 +25,13 @@ type TransactionResponse struct {
 	ID            uuid.UUID                 `json:"id"`
 	CustomerName  string                    `json:"customer_name"`
 	CustomerPhone string                    `json:"customer_phone"`
-	CustomerEmail string                    `json:"customer_email"`
+	OrderType     string                    `json:"order_type"`
 	TableNumber   *int                      `json:"table_number"`
-	Subtotal      float64                   `json:"subtotal"`     // Total sebelum pajak
-	Tax           float64                   `json:"tax"`          // Pajak PPN 10%
-	TotalAmount   float64                   `json:"total_amount"` // Total setelah pajak
+	PromoCode     string                    `json:"promo_code"`
+	Discount      float64                   `json:"discount"`
+	Subtotal      float64                   `json:"subtotal"`      // Total sebelum pajak
+	Tax           float64                   `json:"tax"`           // Pajak PPN 10%
+	TotalAmount   float64                   `json:"total_amount"`  // Total setelah pajak
 	PaymentMethod string                    `json:"payment_method"`
 	PaymentStatus string                    `json:"payment_status"`
 	OrderStatus   string                    `json:"order_status"`
@@ -78,11 +75,13 @@ type TransactionResponseWithSnap struct {
 	ID            uuid.UUID                 `json:"id"`
 	CustomerName  string                    `json:"customer_name"`
 	CustomerPhone string                    `json:"customer_phone"`
-	CustomerEmail string                    `json:"customer_email"`
+	OrderType     string                    `json:"order_type"`
 	TableNumber   *int                      `json:"table_number"`
-	Subtotal      float64                   `json:"subtotal"`     // Total sebelum pajak
-	Tax           float64                   `json:"tax"`          // Pajak PPN 10%
-	TotalAmount   float64                   `json:"total_amount"` // Total setelah pajak
+	PromoCode     string                    `json:"promo_code"`
+	Discount      float64                   `json:"discount"`
+	Subtotal      float64                   `json:"subtotal"`             // Total sebelum pajak
+	Tax           float64                   `json:"tax"`                  // Pajak PPN 10%
+	TotalAmount   float64                   `json:"total_amount"`         // Total setelah pajak
 	PaymentMethod string                    `json:"payment_method"`
 	PaymentStatus string                    `json:"payment_status"`
 	OrderStatus   string                    `json:"order_status"`
@@ -104,4 +103,35 @@ type MidtransNotification struct {
 	TransactionStatus string `json:"transaction_status"`
 	FraudStatus       string `json:"fraud_status"`
 	SignatureKey      string `json:"signature_key"`
+}
+
+// UpdateOrderStatusRequest untuk update status pesanan (kasir / koki)
+type UpdateOrderStatusRequest struct {
+	OrderStatus string `json:"order_status" binding:"required,oneof=pending cooking ready completed cancelled"`
+}
+
+// ReceiptItemResponse item untuk struk
+type ReceiptItemResponse struct {
+	MenuName  string  `json:"menu_name"`
+	Quantity  int     `json:"quantity"`
+	MenuPrice float64 `json:"menu_price"`
+	Subtotal  float64 `json:"subtotal"`
+}
+
+// ReceiptResponse data struk untuk print (GET /transaction/:id/receipt)
+type ReceiptResponse struct {
+	ID                 uuid.UUID              `json:"id"`
+	CreatedAt          string                 `json:"created_at"`
+	CustomerName       string                 `json:"customer_name"`
+	CustomerPhone      string                 `json:"customer_phone"`
+	OrderType          string                 `json:"order_type"`
+	TableNumber        *int                   `json:"table_number,omitempty"`
+	Items              []ReceiptItemResponse `json:"items"`
+	Subtotal           float64                `json:"subtotal"`
+	Discount           float64                `json:"discount"`
+	Tax                float64                `json:"tax"`
+	TotalAmount        float64                `json:"total_amount"`
+	PaymentMethod      string                 `json:"payment_method"`
+	PaymentStatus      string                 `json:"payment_status"`
+	ClosedByUserName   string                 `json:"closed_by_user_name"`
 }
