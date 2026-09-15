@@ -64,9 +64,27 @@ func TestPromoWeekdays(t *testing.T) {
 			if tc.allowed && err != nil {
 				t.Fatal(err)
 			}
-			if !tc.allowed && err != ErrPromoInvalidDay {
+			if !tc.allowed && (err == nil || err.Error() != promoValidDaysMessage(tc.days)) {
 				t.Fatalf("expected invalid day, got %v", err)
 			}
 		})
+	}
+}
+
+func TestPromoValidDaysMessage(t *testing.T) {
+	for _, tc := range []struct {
+		days int
+		want string
+	}{
+		{32, "voucher hanya berlaku hari: jumat"},
+		{62, "voucher hanya berlaku hari senin-jumat"},
+		{65, "voucher hanya berlaku weekend"},
+		{10, "voucher hanya berlaku hari: senin, rabu"},
+		{33, "voucher hanya berlaku hari: jumat, minggu"},
+		{1, "voucher hanya berlaku hari: minggu"},
+	} {
+		if got := promoValidDaysMessage(tc.days); got != tc.want {
+			t.Errorf("days %d: got %q, want %q", tc.days, got, tc.want)
+		}
 	}
 }

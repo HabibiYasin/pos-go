@@ -16,7 +16,6 @@ import (
 // Sentinel errors
 var (
 	ErrPromoNotFound          = errors.New("Promo tidak ditemukan")
-	ErrPromoInvalidDay        = errors.New("Voucher tidak berlaku pada hari ini")
 	ErrPromoNotStarted        = errors.New("Promo belum dimulai")
 	ErrPromoCodeEmpty         = errors.New("Kode voucher wajib diisi")
 	ErrPromoCodeExists        = errors.New("Kode promo sudah digunakan")
@@ -300,7 +299,7 @@ func validatePromoEligibility(promo promo_model.Promo, subtotal float64, now tim
 	// Weekday rules use WIB, including debug previews.
 	weekday := now.In(time.FixedZone("Asia/Jakarta", 7*60*60)).Weekday()
 	if promo.ValidDays&(1<<uint(weekday)) == 0 {
-		return ErrPromoInvalidDay
+		return errors.New(promoValidDaysMessage(promo.ValidDays))
 	}
 
 	// Check: usage limit (0 = unlimited)
@@ -314,4 +313,21 @@ func validatePromoEligibility(promo promo_model.Promo, subtotal float64, now tim
 	}
 
 	return nil
+}
+
+func promoValidDaysMessage(days int) string {
+	switch days {
+	case 62:
+		return "voucher hanya berlaku hari senin-jumat"
+	case 65:
+		return "voucher hanya berlaku weekend"
+	}
+	names := []string{"minggu", "senin", "selasa", "rabu", "kamis", "jumat", "sabtu"}
+	allowed := make([]string, 0, 7)
+	for _, day := range []int{1, 2, 3, 4, 5, 6, 0} {
+		if days&(1<<uint(day)) != 0 {
+			allowed = append(allowed, names[day])
+		}
+	}
+	return "voucher hanya berlaku hari: " + strings.Join(allowed, ", ")
 }
