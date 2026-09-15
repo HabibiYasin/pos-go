@@ -33,6 +33,9 @@ func NewTransactionService() TransactionService {
 
 // CreateTransaction creates a new transaction with items
 func (s TransactionService) CreateTransaction(req dto.CreateTransactionRequest) (*transaction_model.Transaction, string, string, error) {
+	if req.PaymentMethod != "cash" && !config.MidtransReady() {
+		return nil, "", "", ErrPaymentUnavailable
+	}
 	// Start transaction
 	tx := config.DB.Begin()
 	if tx.Error != nil {
@@ -225,6 +228,9 @@ func (s TransactionService) GenerateSnapToken(transaction transaction_model.Tran
 
 	// Prepare request
 	req := &snap.Request{
+		CreditCard: &snap.CreditCardDetails{Secure: true},
+		Expiry:     &snap.ExpiryDetails{Unit: "hour", Duration: 24, StartTime: transaction.CreatedAt.Format("2006-01-02 15:04:05 -0700")},
+		Callbacks:  &snap.Callbacks{Finish: "https://pos.habibiyasin.my.id/payment-pending/" + transaction.ID.String()},
 		TransactionDetails: midtrans.TransactionDetails{
 			OrderID:  transaction.ID.String(),
 			GrossAmt: grossAmt,

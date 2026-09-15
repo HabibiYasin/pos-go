@@ -29,9 +29,9 @@ type TransactionResponse struct {
 	TableNumber   *int                      `json:"table_number"`
 	PromoCode     string                    `json:"promo_code"`
 	Discount      float64                   `json:"discount"`
-	Subtotal      float64                   `json:"subtotal"`      // Total sebelum pajak
-	Tax           float64                   `json:"tax"`           // Pajak PPN 10%
-	TotalAmount   float64                   `json:"total_amount"`  // Total setelah pajak
+	Subtotal      float64                   `json:"subtotal"`     // Total sebelum pajak
+	Tax           float64                   `json:"tax"`          // Pajak PPN 10%
+	TotalAmount   float64                   `json:"total_amount"` // Total setelah pajak
 	PaymentMethod string                    `json:"payment_method"`
 	PaymentStatus string                    `json:"payment_status"`
 	OrderStatus   string                    `json:"order_status"`
@@ -72,30 +72,32 @@ type CreateTransactionResponse struct {
 
 // TransactionResponseWithSnap untuk response yang include snap token (untuk non-cash payment)
 type TransactionResponseWithSnap struct {
-	ID            uuid.UUID                 `json:"id"`
-	CustomerName  string                    `json:"customer_name"`
-	CustomerPhone string                    `json:"customer_phone"`
-	OrderType     string                    `json:"order_type"`
-	TableNumber   *int                      `json:"table_number"`
-	PromoCode     string                    `json:"promo_code"`
-	Discount      float64                   `json:"discount"`
-	Subtotal      float64                   `json:"subtotal"`             // Total sebelum pajak
-	Tax           float64                   `json:"tax"`                  // Pajak PPN 10%
-	TotalAmount   float64                   `json:"total_amount"`         // Total setelah pajak
-	PaymentMethod string                    `json:"payment_method"`
-	PaymentStatus string                    `json:"payment_status"`
-	OrderStatus   string                    `json:"order_status"`
-	Notes         string                    `json:"notes"`
-	ExpiredAt     *string                   `json:"expired_at,omitempty"` // Waktu kadaluarsa
-	Items         []TransactionItemResponse `json:"items"`
-	SnapToken     string                    `json:"snap_token,omitempty"` // Untuk non-cash
-	SnapURL       string                    `json:"snap_url,omitempty"`   // Untuk non-cash
-	CreatedAt     string                    `json:"created_at"`
-	UpdatedAt     string                    `json:"updated_at"`
+	OrderAccessToken string                    `json:"order_access_token,omitempty"`
+	ID               uuid.UUID                 `json:"id"`
+	CustomerName     string                    `json:"customer_name"`
+	CustomerPhone    string                    `json:"customer_phone"`
+	OrderType        string                    `json:"order_type"`
+	TableNumber      *int                      `json:"table_number"`
+	PromoCode        string                    `json:"promo_code"`
+	Discount         float64                   `json:"discount"`
+	Subtotal         float64                   `json:"subtotal"`     // Total sebelum pajak
+	Tax              float64                   `json:"tax"`          // Pajak PPN 10%
+	TotalAmount      float64                   `json:"total_amount"` // Total setelah pajak
+	PaymentMethod    string                    `json:"payment_method"`
+	PaymentStatus    string                    `json:"payment_status"`
+	OrderStatus      string                    `json:"order_status"`
+	Notes            string                    `json:"notes"`
+	ExpiredAt        *string                   `json:"expired_at,omitempty"` // Waktu kadaluarsa
+	Items            []TransactionItemResponse `json:"items"`
+	SnapToken        string                    `json:"snap_token,omitempty"` // Untuk non-cash
+	SnapURL          string                    `json:"snap_url,omitempty"`   // Untuk non-cash
+	CreatedAt        string                    `json:"created_at"`
+	UpdatedAt        string                    `json:"updated_at"`
 }
 
 // MidtransNotification untuk terima notifikasi dari Midtrans webhook
 type MidtransNotification struct {
+	StatusCode        string `json:"status_code"`
 	TransactionID     string `json:"transaction_id"`
 	OrderID           string `json:"order_id"`
 	GrossAmount       string `json:"gross_amount"`
@@ -120,18 +122,18 @@ type ReceiptItemResponse struct {
 
 // ReceiptResponse data struk untuk print (GET /transaction/:id/receipt)
 type ReceiptResponse struct {
-	ID                 uuid.UUID              `json:"id"`
-	CreatedAt          string                 `json:"created_at"`
-	CustomerName       string                 `json:"customer_name"`
-	CustomerPhone      string                 `json:"customer_phone"`
-	OrderType          string                 `json:"order_type"`
-	TableNumber        *int                   `json:"table_number,omitempty"`
-	Items              []ReceiptItemResponse `json:"items"`
-	Subtotal           float64                `json:"subtotal"`
-	Discount           float64                `json:"discount"`
-	Tax                float64                `json:"tax"`
-	TotalAmount        float64                `json:"total_amount"`
-	PaymentMethod      string                 `json:"payment_method"`
-	PaymentStatus      string                 `json:"payment_status"`
-	ClosedByUserName   string                 `json:"closed_by_user_name"`
+	ID               uuid.UUID             `json:"id"`
+	CreatedAt        string                `json:"created_at"`
+	CustomerName     string                `json:"customer_name"`
+	CustomerPhone    string                `json:"customer_phone"`
+	OrderType        string                `json:"order_type"`
+	TableNumber      *int                  `json:"table_number,omitempty"`
+	Items            []ReceiptItemResponse `json:"items"`
+	Subtotal         float64               `json:"subtotal"`
+	Discount         float64               `json:"discount"`
+	Tax              float64               `json:"tax"`
+	TotalAmount      float64               `json:"total_amount"`
+	PaymentMethod    string                `json:"payment_method"`
+	PaymentStatus    string                `json:"payment_status"`
+	ClosedByUserName string                `json:"closed_by_user_name"`
 }

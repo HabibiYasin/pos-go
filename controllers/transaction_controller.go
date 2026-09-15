@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"errors"
+	"pos-go/config"
 	"pos-go/dto"
 	"pos-go/services"
 	"pos-go/utils"
@@ -46,12 +47,16 @@ func CreateTransaction(c *gin.Context) {
 
 	transaction, snapToken, snapURL, err := transactionService.CreateTransaction(req)
 	if err != nil {
+		if errors.Is(err, services.ErrPaymentUnavailable) {
+			utils.ErrorResponse(c, 503, err.Error(), nil)
+			return
+		}
 		if errors.Is(err, services.ErrMenuNotFound) {
 			utils.ErrorResponseNotFound(c, "Menu tidak ditemukan atau tidak tersedia")
 			return
 		}
 		// Error dari Midtrans / token pembayaran: transaksi tidak disimpan ke DB
-		utils.ErrorResponseInternal(c, err.Error())
+		utils.ErrorResponseInternal(c, "Gagal membuat pesanan atau memulai pembayaran. Silakan coba lagi")
 		return
 	}
 
@@ -96,6 +101,10 @@ func CreateTransaction(c *gin.Context) {
 		})
 	}
 	response.Items = items
+	if snapToken != "" {
+		response.OrderAccessToken = utils.OrderAccessToken(transaction.ID.String(), config.MidtransServerKey(), time.Now().Add(48*time.Hour))
+	}
+	c.Header("Cache-Control", "no-store")
 
 	utils.SuccessResponseCreated(c, "Transaksi berhasil dibuat", response)
 }
@@ -108,47 +117,44 @@ func HandleMidtransNotification(c *gin.Context) {
 		return
 	}
 
-	// Verify signature dari Midtrans (penting untuk security!)
-	// TODO: Implementasi signature verification
-
-	// Parse transaction ID
-	transactionID, err := uuid.Parse(notification.OrderID)
-	if err != nil {
-		utils.ErrorResponseBadRequest(c, "Invalid transaction ID", nil)
+	if !services.ValidMidtransSignature(notification, config.MidtransServerKey()) {
+		utils.ErrorResponseForbidden(c, "Notifikasi pembayaran tidak valid")
 		return
 	}
-
-	// Update status berdasarkan response Midtrans
-	var paymentStatus, orderStatus string
-
-	switch notification.TransactionStatus {
-	case "capture", "settlement":
-		paymentStatus = "paid"
-		// Tetap pending (antrian), sampai ada flow dapur/selesai
-		orderStatus = "pending"
-	case "pending":
-		paymentStatus = "pending"
-		orderStatus = "pending"
-	case "expire":
-		// Transaction expired (lewat 24 jam)
-		paymentStatus = "expired"
-		orderStatus = "cancelled"
-	case "deny", "cancel":
-		// Transaction cancelled by user or system
-		paymentStatus = "cancelled"
-		orderStatus = "cancelled"
-	default:
-		paymentStatus = "pending"
-		orderStatus = "pending"
+	// Fetch the authoritative state: signature does not cover transaction_status.
+	status, providerErr := config.MidtransStatusClient.CheckTransaction(notification.OrderID)
+	if providerErr != nil || status == nil {
+		utils.ErrorResponse(c, 502, "Gagal memverifikasi status pembayaran", nil)
+		return
 	}
-
-	_, err = transactionService.UpdateTransactionStatus(transactionID, paymentStatus, orderStatus)
-	if err != nil {
+	if status.OrderID != notification.OrderID {
+		utils.ErrorResponseForbidden(c, "Order pembayaran tidak cocok")
+		return
+	}
+	if err := transactionService.ApplyMidtransStatus(status); err != nil {
+		if errors.Is(err, services.ErrInvalidPaymentNotification) {
+			utils.ErrorResponseBadRequest(c, err.Error(), nil)
+			return
+		}
 		utils.ErrorResponseInternal(c, "Failed to update transaction")
 		return
 	}
 
 	c.JSON(200, gin.H{"status": "success"})
+}
+
+func GetPaymentConfig(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	utils.SuccessResponseOK(c, "Konfigurasi pembayaran", gin.H{"enabled": config.MidtransReady(), "client_key": config.MidtransClientKey(), "environment": "sandbox"})
+}
+
+func GetCustomerOrder(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	if !utils.ValidOrderAccessToken(c.Param("id"), config.MidtransServerKey(), c.GetHeader("X-Order-Token")) {
+		utils.ErrorResponseForbidden(c, "Akses pesanan tidak valid atau kedaluwarsa")
+		return
+	}
+	GetTransactionByID(c)
 }
 
 // ConfirmCashPaid - kasir konfirmasi pembayaran tunai (closed_by_user_id diisi untuk laporan per kasir)

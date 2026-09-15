@@ -16,6 +16,7 @@ import (
 // Sentinel errors
 var (
 	ErrPromoNotFound          = errors.New("Promo tidak ditemukan")
+	ErrPromoInvalidDay        = errors.New("Voucher tidak berlaku pada hari ini")
 	ErrPromoNotStarted        = errors.New("Promo belum dimulai")
 	ErrPromoCodeEmpty         = errors.New("Kode voucher wajib diisi")
 	ErrPromoCodeExists        = errors.New("Kode promo sudah digunakan")
@@ -36,7 +37,9 @@ type PromoService interface {
 	GetAllPromos() ([]promo_model.Promo, error)
 	GetPromoByID(promoID string) (promo_model.Promo, error)
 	GetActivePromos() ([]promo_model.Promo, error)
+	GetActivePromosAt(now time.Time) ([]promo_model.Promo, error)
 	ValidatePromo(code string, subtotal float64) (promo_model.Promo, float64, error)
+	ValidatePromoAt(code string, subtotal float64, now time.Time) (promo_model.Promo, float64, error)
 }
 
 type promoService struct{}
@@ -74,6 +77,9 @@ func (s *promoService) CreatePromo(input dto.CreatePromoDTO) (promo_model.Promo,
 	}
 
 	// Simpan ke database
+	if input.ValidDays != nil {
+		promo.ValidDays = *input.ValidDays
+	}
 	if err := config.DB.Create(&promo).Error; err != nil {
 		return promo_model.Promo{}, ErrCreatePromoFailed
 	}
@@ -164,6 +170,9 @@ func (s *promoService) UpdatePromo(promoID string, input dto.UpdatePromoDTO) (pr
 		promo.EndDate = input.EndDate
 	}
 
+	if input.ValidDays != nil {
+		promo.ValidDays = *input.ValidDays
+	}
 	promo.IsActive = input.IsActive
 
 	// Simpan perubahan
@@ -176,14 +185,18 @@ func (s *promoService) UpdatePromo(promoID string, input dto.UpdatePromoDTO) (pr
 
 // GetActivePromos mengambil semua promo yang aktif (public endpoint)
 func (s *promoService) GetActivePromos() ([]promo_model.Promo, error) {
+	return s.GetActivePromosAt(time.Now())
+}
+
+func (s *promoService) GetActivePromosAt(now time.Time) ([]promo_model.Promo, error) {
 	var promos []promo_model.Promo
-	now := time.Now()
 
 	// Ambil promo yang aktif, dalam rentang tanggal, dan belum habis kuota
 	// Filter: is_active = true, start_date <= now (sudah mulai), end_date >= now (belum berakhir), dan usage belum habis
 	// GORM secara default exclude soft deleted records (deleted_at IS NULL)
 	if err := config.DB.Where("is_active = ? AND start_date <= ? AND end_date >= ?", true, now, now).
 		Where("(usage_limit = 0 OR usage_count < usage_limit)").
+		Where("(valid_days & ?) <> 0", 1<<uint(now.In(time.FixedZone("Asia/Jakarta", 7*60*60)).Weekday())).
 		Order("created_at DESC").
 		Find(&promos).Error; err != nil {
 		return nil, ErrGetPromosFailed
@@ -218,6 +231,10 @@ func (s *promoService) DeletePromo(promoID string) error {
 
 // ValidatePromo memvalidasi kode promo dan menghitung discount
 func (s *promoService) ValidatePromo(code string, subtotal float64) (promo_model.Promo, float64, error) {
+	return s.ValidatePromoAt(code, subtotal, time.Now())
+}
+
+func (s *promoService) ValidatePromoAt(code string, subtotal float64, now time.Time) (promo_model.Promo, float64, error) {
 	var promo promo_model.Promo
 	code = strings.TrimSpace(code)
 	if code == "" {
@@ -232,7 +249,7 @@ func (s *promoService) ValidatePromo(code string, subtotal float64) (promo_model
 		return promo_model.Promo{}, 0, errors.New("Gagal memvalidasi promo")
 	}
 
-	if err := validatePromoEligibility(promo, subtotal, time.Now()); err != nil {
+	if err := validatePromoEligibility(promo, subtotal, now); err != nil {
 		return promo_model.Promo{}, 0, err
 	}
 
@@ -278,6 +295,12 @@ func validatePromoEligibility(promo promo_model.Promo, subtotal float64, now tim
 	}
 	if now.After(promo.EndDate) {
 		return ErrPromoExpired
+	}
+
+	// Weekday rules use WIB, including debug previews.
+	weekday := now.In(time.FixedZone("Asia/Jakarta", 7*60*60)).Weekday()
+	if promo.ValidDays&(1<<uint(weekday)) == 0 {
+		return ErrPromoInvalidDay
 	}
 
 	// Check: usage limit (0 = unlimited)

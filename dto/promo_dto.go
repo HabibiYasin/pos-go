@@ -6,6 +6,7 @@ import (
 
 // CreatePromoDTO untuk create promo baru
 type CreatePromoDTO struct {
+	ValidDays   *int      `json:"valid_days" binding:"omitempty,min=1,max=127"`
 	Code        string    `json:"code" binding:"required,min=3,max=50"`
 	Name        string    `json:"name" binding:"required,max=255"`
 	Description string    `json:"description"`
@@ -21,6 +22,7 @@ type CreatePromoDTO struct {
 
 // UpdatePromoDTO untuk update promo
 type UpdatePromoDTO struct {
+	ValidDays   *int      `json:"valid_days" binding:"omitempty,min=1,max=127"`
 	Code        string    `json:"code" binding:"omitempty,min=3,max=50"`
 	Name        string    `json:"name" binding:"omitempty,max=255"`
 	Description string    `json:"description"`
@@ -36,6 +38,7 @@ type UpdatePromoDTO struct {
 
 // ValidatePromoDTO untuk validate promo code saat checkout
 type ValidatePromoDTO struct {
-	Code     string  `json:"code" binding:"required"`
-	Subtotal float64 `json:"subtotal" binding:"required,min=0"`
+	DebugDate string  `json:"debug_date"`
+	Code      string  `json:"code" binding:"required"`
+	Subtotal  float64 `json:"subtotal" binding:"required,min=0"`
 }

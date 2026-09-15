@@ -5,6 +5,7 @@ import (
 	"pos-go/dto"
 	"pos-go/services"
 	"pos-go/utils"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
@@ -145,7 +146,12 @@ func DeletePromo(c *gin.Context) {
 
 // GetActivePromos - Public endpoint untuk customer melihat promo aktif
 func GetActivePromos(c *gin.Context) {
-	promos, err := promoService.GetActivePromos()
+	now, err := promoDebugTime(c.Query("debug_date"))
+	if err != nil {
+		utils.ErrorResponseBadRequest(c, "Tanggal debug tidak valid (gunakan YYYY-MM-DD)", nil)
+		return
+	}
+	promos, err := promoService.GetActivePromosAt(now)
 	if err != nil {
 		utils.ErrorResponseInternal(c, "Gagal mengambil daftar promo aktif")
 		return
@@ -163,7 +169,12 @@ func ValidatePromo(c *gin.Context) {
 		return
 	}
 
-	promo, discount, err := promoService.ValidatePromo(input.Code, input.Subtotal)
+	now, err := promoDebugTime(input.DebugDate)
+	if err != nil {
+		utils.ErrorResponseBadRequest(c, "Tanggal debug tidak valid (gunakan YYYY-MM-DD)", nil)
+		return
+	}
+	promo, discount, err := promoService.ValidatePromoAt(input.Code, input.Subtotal, now)
 	if err != nil {
 		utils.ErrorResponseBadRequest(c, err.Error(), nil)
 		return
@@ -176,4 +187,19 @@ func ValidatePromo(c *gin.Context) {
 	}
 
 	utils.SuccessResponseOK(c, "Promo valid", response)
+}
+
+// Debug dates affect public promo previews only, never transaction validation.
+func promoDebugTime(value string) (time.Time, error) {
+	now := time.Now()
+	if value == "" {
+		return now, nil
+	}
+	jakarta := time.FixedZone("Asia/Jakarta", 7*60*60)
+	date, err := time.ParseInLocation("2006-01-02", value, jakarta)
+	if err != nil {
+		return time.Time{}, err
+	}
+	local := now.In(jakarta)
+	return time.Date(date.Year(), date.Month(), date.Day(), local.Hour(), local.Minute(), local.Second(), 0, jakarta), nil
 }

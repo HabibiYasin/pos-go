@@ -12,6 +12,8 @@ func TransactionRoutes(r *gin.Engine) {
 	{
 		// Public - create transaction (checkout untuk customer)
 		transaction.POST("", controllers.CreateTransaction)
+		transaction.GET("/payment-config", controllers.GetPaymentConfig)
+		transaction.GET("/:id/customer", controllers.GetCustomerOrder)
 
 		// Public - webhook dari Midtrans (PENTING!)
 		transaction.POST("/notification", controllers.HandleMidtransNotification)

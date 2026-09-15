@@ -8,6 +8,7 @@ import (
 )
 
 type Promo struct {
+	ValidDays   int            `gorm:"type:smallint;not null;default:127;check:promos_valid_days_check,valid_days BETWEEN 1 AND 127" json:"valid_days"` // Bitmask: Sunday=1, Monday=2, ..., Saturday=64.
 	ID          uuid.UUID      `gorm:"type:uuid;primaryKey" json:"id"`
 	Code        string         `gorm:"type:varchar(50);unique;not null" json:"code"`
 	Name        string         `gorm:"type:varchar(255);not null" json:"name"`
