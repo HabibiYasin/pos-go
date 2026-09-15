@@ -40,6 +40,9 @@ func (s TransactionService) CreateTransaction(req dto.CreateTransactionRequest) 
 	if !menu_model.ValidBranch(req.Branch) {
 		return nil, "", "", errors.New("Pilih cabang yang valid")
 	}
+	if err := ResetBranchStocks(config.DB, req.Branch, false); err != nil {
+		return nil, "", "", ErrDatabaseError
+	}
 	// Start transaction
 	tx := config.DB.Begin()
 	if tx.Error != nil {

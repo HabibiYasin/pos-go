@@ -6,6 +6,7 @@ import (
 	"pos-go/dto"
 	category_model "pos-go/models/category_model"
 	menu_model "pos-go/models/menu_model"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -44,7 +45,7 @@ func (s *menuService) CreateMenu(input dto.CreateMenuDTO) (menu_model.Menu, erro
 	}
 	if stocks == nil {
 		for _, branch := range []string{"jakarta-selatan", "depok", "tokyo"} {
-			stocks = append(stocks, menu_model.BranchStock{Branch: branch, IsAvailable: true, Stock: 0})
+			stocks = append(stocks, menu_model.BranchStock{Branch: branch, IsAvailable: true, Stock: 0, ResetDate: branchDate(branch, time.Now())})
 		}
 	}
 	// Validasi: cek apakah category exists
@@ -97,6 +98,9 @@ func (s *menuService) CreateMenu(input dto.CreateMenuDTO) (menu_model.Menu, erro
 
 // Get semua menu untuk admin dashboard
 func (s *menuService) GetAllMenus() ([]menu_model.Menu, error) {
+	if err := ResetBranchStocks(config.DB, "", false); err != nil {
+		return nil, ErrGetMenusFailed
+	}
 	var menus []menu_model.Menu
 
 	// Preload Category untuk mendapatkan informasi kategori
@@ -109,6 +113,9 @@ func (s *menuService) GetAllMenus() ([]menu_model.Menu, error) {
 
 // Get menu yang tersedia untuk customer (is_available = true)
 func (s *menuService) GetPublicMenus() ([]menu_model.Menu, error) {
+	if err := ResetBranchStocks(config.DB, "", false); err != nil {
+		return nil, ErrGetMenusFailed
+	}
 	var menus []menu_model.Menu
 
 	// Filter hanya menu yang is_available = true
@@ -196,7 +203,7 @@ func (s *menuService) UpdateMenu(menuID string, input dto.UpdateMenuDTO) (menu_m
 		}
 		for _, stock := range stocks {
 			stock.MenuID = menu.ID
-			if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "menu_id"}, {Name: "branch"}}, DoUpdates: clause.AssignmentColumns([]string{"stock", "is_available"})}).Create(&stock).Error; err != nil {
+			if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "menu_id"}, {Name: "branch"}}, DoUpdates: clause.Assignments(map[string]interface{}{"stock": gorm.Expr("EXCLUDED.stock"), "is_available": gorm.Expr("EXCLUDED.is_available"), "reset_date": gorm.Expr("EXCLUDED.reset_date"), "initial_stock": gorm.Expr("CASE WHEN branch_stocks.stock <> EXCLUDED.stock THEN EXCLUDED.initial_stock ELSE branch_stocks.initial_stock END")})}).Create(&stock).Error; err != nil {
 				return err
 			}
 		}

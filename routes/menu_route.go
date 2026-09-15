@@ -15,6 +15,7 @@ func MenuRoutes(r *gin.Engine) {
 
 		// Public - hanya menu yang available
 		menu.GET("/public", controllers.GetPublicMenus)
+		menu.POST("/debug-stock/:branch/reset", controllers.ResetDebugStock)
 
 		// Admin only - create menu
 		menu.POST("", middleware.AuthMiddleware(), middleware.RequireRole("admin"), controllers.CreateMenu)

@@ -8,6 +8,7 @@ import (
 	"pos-go/config"
 	database "pos-go/database/migrations"
 	"pos-go/routes"
+	"pos-go/services"
 	"pos-go/utils"
 
 	"github.com/gin-contrib/cors"
@@ -16,6 +17,7 @@ import (
 
 func main() {
 	config.ConnectDatabase()
+	services.StartStockResetWorker()
 	config.InitMidtrans()
 	database.SeedAdmin()
 

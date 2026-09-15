@@ -65,9 +65,16 @@ func ConnectDatabase() {
 		log.Fatal("Migrasi gagal:", err)
 	}
 
+	// Preserve existing inventory when upgrading a database without reset metadata.
+	if err := database.Exec(`UPDATE branch_stocks SET initial_stock = stock,
+ reset_date = (CURRENT_TIMESTAMP AT TIME ZONE CASE WHEN branch = 'tokyo' THEN 'Asia/Tokyo' ELSE 'Asia/Jakarta' END)::date
+ WHERE reset_date IS NULL`).Error; err != nil {
+		log.Fatal("Migrasi stok awal gagal")
+	}
+
 	// Backfill existing menus only; conflict handling preserves stock on restarts.
-	if err := database.Exec(`INSERT INTO branch_stocks (menu_id, branch, is_available, stock)
- SELECT m.id, b.branch, true, 10 FROM menus m
+	if err := database.Exec(`INSERT INTO branch_stocks (menu_id, branch, is_available, stock, initial_stock, reset_date)
+ SELECT m.id, b.branch, true, 0, 0, (CURRENT_TIMESTAMP AT TIME ZONE CASE WHEN b.branch = 'tokyo' THEN 'Asia/Tokyo' ELSE 'Asia/Jakarta' END)::date FROM menus m
  CROSS JOIN (VALUES ('jakarta-selatan'), ('depok'), ('tokyo')) AS b(branch)
  WHERE m.deleted_at IS NULL
  ON CONFLICT (menu_id, branch) DO NOTHING`).Error; err != nil {

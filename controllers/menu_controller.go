@@ -2,7 +2,9 @@ package controllers
 
 import (
 	"errors"
+	"pos-go/config"
 	"pos-go/dto"
+	menu_model "pos-go/models/menu_model"
 	"pos-go/services"
 	"pos-go/utils"
 	"strconv"
@@ -244,4 +246,17 @@ func DeleteMenu(c *gin.Context) {
 	}
 
 	utils.SuccessResponseOK(c, "Menu berhasil dihapus", nil)
+}
+
+func ResetDebugStock(c *gin.Context) {
+	branch := c.Param("branch")
+	if !menu_model.ValidBranch(branch) {
+		utils.ErrorResponseBadRequest(c, "Cabang tidak valid", nil)
+		return
+	}
+	if err := services.ResetBranchStocks(config.DB, branch, true); err != nil {
+		utils.ErrorResponseInternal(c, "Gagal mereset stok")
+		return
+	}
+	utils.SuccessResponseOK(c, "Stok cabang dikembalikan ke stok awal", nil)
 }

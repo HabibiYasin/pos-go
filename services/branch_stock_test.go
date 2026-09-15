@@ -7,6 +7,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"testing"
+	"time"
 )
 
 func TestBranchStockInput(t *testing.T) {
@@ -44,6 +45,34 @@ func TestConsumeBranchStock(t *testing.T) {
 			t.Fatalf("expected stock error, got %v", err)
 		}
 		if affected == 1 && err != nil {
+			t.Fatal(err)
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestBranchResetDates(t *testing.T) {
+	now := time.Date(2026, 9, 15, 16, 0, 0, 0, time.UTC)
+	if branchDate("tokyo", now) != "2026-09-16" || branchDate("depok", now) != "2026-09-15" {
+		t.Fatal("incorrect local reset date")
+	}
+}
+func TestResetStockScope(t *testing.T) {
+	for _, force := range []bool{false, true} {
+		sqlDB, mock, _ := sqlmock.New()
+		defer sqlDB.Close()
+		db, err := gorm.Open(postgres.New(postgres.Config{Conn: sqlDB}), &gorm.Config{SkipDefaultTransaction: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		pattern := `UPDATE "branch_stocks" SET .* WHERE branch = \$1`
+		if !force {
+			pattern += ` AND \(reset_date IS NULL OR reset_date < .*`
+		}
+		mock.ExpectExec(pattern).WithArgs("depok").WillReturnResult(sqlmock.NewResult(0, 15))
+		if err := ResetBranchStocks(db, "depok", force); err != nil {
 			t.Fatal(err)
 		}
 		if err := mock.ExpectationsWereMet(); err != nil {
