@@ -74,6 +74,10 @@ func CreateMenu(c *gin.Context) {
 	// Create menu via service
 	menu, err := menuService.CreateMenu(input)
 	if err != nil {
+		if errors.Is(err, services.ErrBranchStocks) {
+			utils.ErrorResponseBadRequest(c, err.Error(), nil)
+			return
+		}
 		// Handle sentinel errors
 		if errors.Is(err, services.ErrCategoryNotFound) {
 			utils.ErrorResponseBadRequest(c, "Category tidak ditemukan", nil)
@@ -184,6 +188,14 @@ func UpdateMenu(c *gin.Context) {
 	// Update menu via service
 	menu, err := menuService.UpdateMenu(menuID, input)
 	if err != nil {
+		if errors.Is(err, services.ErrBranchStocks) {
+			utils.ErrorResponseBadRequest(c, err.Error(), nil)
+			return
+		}
+		if errors.Is(err, services.ErrBranchStocks) {
+			utils.ErrorResponseBadRequest(c, err.Error(), nil)
+			return
+		}
 		// Handle sentinel errors
 		if errors.Is(err, services.ErrMenuNotFound) {
 			utils.ErrorResponseBadRequest(c, "Menu tidak ditemukan", nil)
@@ -214,6 +226,10 @@ func DeleteMenu(c *gin.Context) {
 	// Delete menu via service
 	err := menuService.DeleteMenu(menuID)
 	if err != nil {
+		if errors.Is(err, services.ErrBranchStocks) {
+			utils.ErrorResponseBadRequest(c, err.Error(), nil)
+			return
+		}
 		// Handle sentinel errors
 		if errors.Is(err, services.ErrMenuNotFound) {
 			utils.ErrorResponseBadRequest(c, "Menu tidak ditemukan", nil)

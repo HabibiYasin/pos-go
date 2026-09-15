@@ -20,7 +20,7 @@ func TestPaymentRoutesRejectUnconfiguredCheckoutAndInvalidAccess(t *testing.T) {
 		{"GET", "/transaction/payment-config", "", 200},
 		{"GET", "/transaction/00000000-0000-0000-0000-000000000001/customer", "", 403},
 		{"POST", "/transaction/notification", `{"order_id":"00000000-0000-0000-0000-000000000001","signature_key":"fake","transaction_status":"settlement"}`, 403},
-		{"POST", "/transaction", `{"customer_name":"Test","customer_phone":"081234567890","order_type":"take_away","payment_method":"e_wallet","items":[{"menu_id":"00000000-0000-0000-0000-000000000001","quantity":1}]}`, 503},
+		{"POST", "/transaction", `{"branch":"jakarta-selatan","customer_name":"Test","customer_phone":"081234567890","order_type":"take_away","payment_method":"e_wallet","items":[{"menu_id":"00000000-0000-0000-0000-000000000001","quantity":1}]}`, 503},
 	} {
 		req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
 		req.Header.Set("Content-Type", "application/json")

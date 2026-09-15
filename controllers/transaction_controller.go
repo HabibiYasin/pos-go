@@ -47,6 +47,10 @@ func CreateTransaction(c *gin.Context) {
 
 	transaction, snapToken, snapURL, err := transactionService.CreateTransaction(req)
 	if err != nil {
+		if errors.Is(err, services.ErrInsufficientStock) {
+			utils.ErrorResponse(c, 409, err.Error(), nil)
+			return
+		}
 		if errors.Is(err, services.ErrPaymentUnavailable) {
 			utils.ErrorResponse(c, 503, err.Error(), nil)
 			return
@@ -62,6 +66,7 @@ func CreateTransaction(c *gin.Context) {
 
 	// Response dengan snap token untuk non-cash
 	response := dto.TransactionResponseWithSnap{
+		Branch:        transaction.Branch,
 		ID:            transaction.ID,
 		CustomerName:  transaction.CustomerName,
 		CustomerPhone: transaction.CustomerPhone,

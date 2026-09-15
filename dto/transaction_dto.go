@@ -4,6 +4,7 @@ import "github.com/google/uuid"
 
 // CreateTransactionRequest represents the request to create a new transaction
 type CreateTransactionRequest struct {
+	Branch        string                         `json:"branch" binding:"required,oneof=jakarta-selatan depok tokyo"`
 	CustomerName  string                         `json:"customer_name" binding:"required"`
 	CustomerPhone string                         `json:"customer_phone" binding:"required"`
 	OrderType     string                         `json:"order_type" binding:"required,oneof=dine_in take_away"`
@@ -72,6 +73,7 @@ type CreateTransactionResponse struct {
 
 // TransactionResponseWithSnap untuk response yang include snap token (untuk non-cash payment)
 type TransactionResponseWithSnap struct {
+	Branch           string                    `json:"branch"`
 	OrderAccessToken string                    `json:"order_access_token,omitempty"`
 	ID               uuid.UUID                 `json:"id"`
 	CustomerName     string                    `json:"customer_name"`

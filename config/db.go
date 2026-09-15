@@ -55,6 +55,7 @@ func ConnectDatabase() {
 		&user_model.User{},
 		&category_model.Category{},
 		&menu_model.Menu{},
+		&menu_model.BranchStock{},
 		&transaction_model.Transaction{},
 		&transaction_model.TransactionItem{},
 		&promo_model.Promo{},
@@ -62,6 +63,15 @@ func ConnectDatabase() {
 	)
 	if err != nil {
 		log.Fatal("Migrasi gagal:", err)
+	}
+
+	// Backfill existing menus only; conflict handling preserves stock on restarts.
+	if err := database.Exec(`INSERT INTO branch_stocks (menu_id, branch, is_available, stock)
+ SELECT m.id, b.branch, true, 10 FROM menus m
+ CROSS JOIN (VALUES ('jakarta-selatan'), ('depok'), ('tokyo')) AS b(branch)
+ WHERE m.deleted_at IS NULL
+ ON CONFLICT (menu_id, branch) DO NOTHING`).Error; err != nil {
+		log.Fatal("Migrasi stok cabang gagal")
 	}
 
 	log.Println("Migrasi tabel berhasil")

@@ -8,6 +8,7 @@ import (
 	promo_model "pos-go/models/promo_model"
 	transaction_model "pos-go/models/transaction_model"
 	user_model "pos-go/models/user_model"
+	"sort"
 	"strings"
 	"time"
 
@@ -36,6 +37,9 @@ func (s TransactionService) CreateTransaction(req dto.CreateTransactionRequest) 
 	if req.PaymentMethod != "cash" && !config.MidtransReady() {
 		return nil, "", "", ErrPaymentUnavailable
 	}
+	if !menu_model.ValidBranch(req.Branch) {
+		return nil, "", "", errors.New("Pilih cabang yang valid")
+	}
 	// Start transaction
 	tx := config.DB.Begin()
 	if tx.Error != nil {
@@ -54,6 +58,8 @@ func (s TransactionService) CreateTransaction(req dto.CreateTransactionRequest) 
 	var appliedPromoID *uuid.UUID
 	var discount float64
 
+	// Stable lock order avoids deadlocks for orders containing multiple menus.
+	sort.Slice(req.Items, func(i, j int) bool { return req.Items[i].MenuID.String() < req.Items[j].MenuID.String() })
 	for _, itemReq := range req.Items {
 		var menu menu_model.Menu
 		if err := tx.First(&menu, "id = ? AND is_available = ?", itemReq.MenuID, true).Error; err != nil {
@@ -62,6 +68,11 @@ func (s TransactionService) CreateTransaction(req dto.CreateTransactionRequest) 
 				return nil, "", "", ErrMenuNotFound
 			}
 			return nil, "", "", ErrDatabaseError
+		}
+
+		if err := consumeBranchStock(tx, menu.ID, req.Branch, itemReq.Quantity); err != nil {
+			tx.Rollback()
+			return nil, "", "", err
 		}
 
 		itemSubtotal := menu.Price * float64(itemReq.Quantity)
@@ -121,6 +132,7 @@ func (s TransactionService) CreateTransaction(req dto.CreateTransactionRequest) 
 	}
 
 	transaction := transaction_model.Transaction{
+		Branch:        req.Branch,
 		CustomerName:  req.CustomerName,
 		CustomerPhone: req.CustomerPhone,
 		OrderType:     req.OrderType,

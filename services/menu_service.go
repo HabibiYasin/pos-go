@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // Sentinel errors
@@ -37,6 +38,15 @@ func NewMenuService() MenuService {
 }
 
 func (s *menuService) CreateMenu(input dto.CreateMenuDTO) (menu_model.Menu, error) {
+	stocks, stockErr := parseBranchStocks(input.BranchStocks)
+	if stockErr != nil {
+		return menu_model.Menu{}, stockErr
+	}
+	if stocks == nil {
+		for _, branch := range []string{"jakarta-selatan", "depok", "tokyo"} {
+			stocks = append(stocks, menu_model.BranchStock{Branch: branch, IsAvailable: true, Stock: 0})
+		}
+	}
 	// Validasi: cek apakah category exists
 	categoryID, err := uuid.Parse(input.CategoryID)
 	if err != nil {
@@ -63,12 +73,13 @@ func (s *menuService) CreateMenu(input dto.CreateMenuDTO) (menu_model.Menu, erro
 
 	// Buat menu
 	menu := menu_model.Menu{
-		Name:        input.Name,
-		Description: input.Description,
-		Price:       input.Price,
-		Image:       input.Image,
-		IsAvailable: input.IsAvailable,
-		CategoryID:  categoryID,
+		BranchStocks: stocks,
+		Name:         input.Name,
+		Description:  input.Description,
+		Price:        input.Price,
+		Image:        input.Image,
+		IsAvailable:  input.IsAvailable,
+		CategoryID:   categoryID,
 	}
 
 	// Simpan ke database
@@ -77,7 +88,7 @@ func (s *menuService) CreateMenu(input dto.CreateMenuDTO) (menu_model.Menu, erro
 	}
 
 	// Preload category untuk response
-	if err := config.DB.Preload("Category").First(&menu, menu.ID).Error; err != nil {
+	if err := config.DB.Preload("BranchStocks").Preload("Category").First(&menu, menu.ID).Error; err != nil {
 		return menu_model.Menu{}, ErrCreateMenuFailed
 	}
 
@@ -89,7 +100,7 @@ func (s *menuService) GetAllMenus() ([]menu_model.Menu, error) {
 	var menus []menu_model.Menu
 
 	// Preload Category untuk mendapatkan informasi kategori
-	if err := config.DB.Preload("Category").Find(&menus).Error; err != nil {
+	if err := config.DB.Preload("BranchStocks").Preload("Category").Find(&menus).Error; err != nil {
 		return nil, ErrGetMenusFailed
 	}
 
@@ -102,7 +113,7 @@ func (s *menuService) GetPublicMenus() ([]menu_model.Menu, error) {
 
 	// Filter hanya menu yang is_available = true
 	// Preload Category untuk mendapatkan informasi kategori
-	if err := config.DB.Preload("Category").Where("is_available = ?", true).Find(&menus).Error; err != nil {
+	if err := config.DB.Preload("BranchStocks").Preload("Category").Where("is_available = ?", true).Find(&menus).Error; err != nil {
 		return nil, ErrGetMenusFailed
 	}
 
@@ -111,6 +122,10 @@ func (s *menuService) GetPublicMenus() ([]menu_model.Menu, error) {
 
 // UpdateMenu mengupdate menu berdasarkan ID (partial update)
 func (s *menuService) UpdateMenu(menuID string, input dto.UpdateMenuDTO) (menu_model.Menu, error) {
+	stocks, stockErr := parseBranchStocks(input.BranchStocks)
+	if stockErr != nil {
+		return menu_model.Menu{}, stockErr
+	}
 	// Parse menu ID
 	id, err := uuid.Parse(menuID)
 	if err != nil {
@@ -175,12 +190,23 @@ func (s *menuService) UpdateMenu(menuID string, input dto.UpdateMenuDTO) (menu_m
 	}
 
 	// Simpan perubahan ke database
-	if err := config.DB.Save(&menu).Error; err != nil {
+	if err := config.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Omit("BranchStocks").Save(&menu).Error; err != nil {
+			return err
+		}
+		for _, stock := range stocks {
+			stock.MenuID = menu.ID
+			if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "menu_id"}, {Name: "branch"}}, DoUpdates: clause.AssignmentColumns([]string{"stock", "is_available"})}).Create(&stock).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
 		return menu_model.Menu{}, ErrUpdateMenuFailed
 	}
 
 	// Preload category untuk response
-	if err := config.DB.Preload("Category").First(&menu, menu.ID).Error; err != nil {
+	if err := config.DB.Preload("BranchStocks").Preload("Category").First(&menu, menu.ID).Error; err != nil {
 		return menu_model.Menu{}, ErrUpdateMenuFailed
 	}
 
