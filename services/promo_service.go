@@ -15,16 +15,18 @@ import (
 
 // Sentinel errors
 var (
-	ErrPromoNotFound     = errors.New("Promo tidak ditemukan")
-	ErrPromoCodeExists   = errors.New("Kode promo sudah digunakan")
-	ErrPromoInactive     = errors.New("Promo tidak aktif")
-	ErrPromoExpired      = errors.New("Promo sudah kadaluarsa")
-	ErrPromoUsageLimitReached = errors.New("Promo sudah habis")
-	ErrMinPurchaseNotMet = errors.New("Minimum pembelian tidak terpenuhi")
-	ErrCreatePromoFailed = errors.New("Gagal membuat promo")
-	ErrUpdatePromoFailed = errors.New("Gagal mengupdate promo")
-	ErrDeletePromoFailed = errors.New("Gagal menghapus promo")
-	ErrGetPromosFailed   = errors.New("Gagal mengambil daftar promo")
+	ErrPromoNotFound          = errors.New("Promo tidak ditemukan")
+	ErrPromoNotStarted        = errors.New("Promo belum dimulai")
+	ErrPromoCodeEmpty         = errors.New("Kode voucher wajib diisi")
+	ErrPromoCodeExists        = errors.New("Kode promo sudah digunakan")
+	ErrPromoInactive          = errors.New("Promo tidak aktif")
+	ErrPromoExpired           = errors.New("Voucher expired")
+	ErrPromoUsageLimitReached = errors.New("Batas kuota voucher habis")
+	ErrMinPurchaseNotMet      = errors.New("Minimum pembelian tidak terpenuhi")
+	ErrCreatePromoFailed      = errors.New("Gagal membuat promo")
+	ErrUpdatePromoFailed      = errors.New("Gagal mengupdate promo")
+	ErrDeletePromoFailed      = errors.New("Gagal menghapus promo")
+	ErrGetPromosFailed        = errors.New("Gagal mengambil daftar promo")
 )
 
 type PromoService interface {
@@ -42,7 +44,6 @@ type promoService struct{}
 func NewPromoService() PromoService {
 	return &promoService{}
 }
-
 
 // CreatePromo membuat promo baru
 func (s *promoService) CreatePromo(input dto.CreatePromoDTO) (promo_model.Promo, error) {
@@ -218,6 +219,10 @@ func (s *promoService) DeletePromo(promoID string) error {
 // ValidatePromo memvalidasi kode promo dan menghitung discount
 func (s *promoService) ValidatePromo(code string, subtotal float64) (promo_model.Promo, float64, error) {
 	var promo promo_model.Promo
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return promo_model.Promo{}, 0, ErrPromoCodeEmpty
+	}
 
 	// Find promo by code (case insensitive)
 	if err := config.DB.Where("LOWER(code) = LOWER(?)", code).First(&promo).Error; err != nil {
@@ -227,25 +232,8 @@ func (s *promoService) ValidatePromo(code string, subtotal float64) (promo_model
 		return promo_model.Promo{}, 0, errors.New("Gagal memvalidasi promo")
 	}
 
-	// Check: is_active
-	if !promo.IsActive {
-		return promo_model.Promo{}, 0, ErrPromoInactive
-	}
-
-	// Check: date range
-	now := time.Now()
-	if now.Before(promo.StartDate) || now.After(promo.EndDate) {
-		return promo_model.Promo{}, 0, ErrPromoExpired
-	}
-
-	// Check: usage limit (0 = unlimited)
-	if promo.UsageLimit > 0 && promo.UsageCount >= promo.UsageLimit {
-		return promo_model.Promo{}, 0, ErrPromoUsageLimitReached
-	}
-
-	// Check: min purchase
-	if subtotal < promo.MinPurchase {
-		return promo_model.Promo{}, 0, fmt.Errorf("Minimum pembelian Rp %.0f", promo.MinPurchase)
+	if err := validatePromoEligibility(promo, subtotal, time.Now()); err != nil {
+		return promo_model.Promo{}, 0, err
 	}
 
 	// Calculate discount
@@ -267,4 +255,40 @@ func (s *promoService) ValidatePromo(code string, subtotal float64) (promo_model
 	}
 
 	return promo, discount, nil
+}
+
+// formatPromoShortfall formats the missing subtotal in Indonesian rupiah.
+func formatPromoShortfall(amount float64) string {
+	value := fmt.Sprintf("%.0f", amount)
+	for i := len(value) - 3; i > 0; i -= 3 {
+		value = value[:i] + "." + value[i:]
+	}
+	return value
+}
+
+func validatePromoEligibility(promo promo_model.Promo, subtotal float64, now time.Time) error {
+	// Check: is_active
+	if !promo.IsActive {
+		return ErrPromoInactive
+	}
+
+	// Check: date range
+	if now.Before(promo.StartDate) {
+		return ErrPromoNotStarted
+	}
+	if now.After(promo.EndDate) {
+		return ErrPromoExpired
+	}
+
+	// Check: usage limit (0 = unlimited)
+	if promo.UsageLimit > 0 && promo.UsageCount >= promo.UsageLimit {
+		return ErrPromoUsageLimitReached
+	}
+
+	// Check: min purchase
+	if subtotal < promo.MinPurchase {
+		return fmt.Errorf("Promo tidak terpenuhi (tambahkan Rp%s)", formatPromoShortfall(promo.MinPurchase-subtotal))
+	}
+
+	return nil
 }
