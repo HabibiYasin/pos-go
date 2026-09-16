@@ -15,7 +15,7 @@ type CreatePromoDTO struct {
 	Value         float64   `json:"value" binding:"required,min=0"`
 	MinPurchase   float64   `json:"min_purchase"`
 	MaxDiscount   float64   `json:"max_discount"`
-	UsageLimit    int       `json:"usage_limit"`
+	UsageLimit    *int      `json:"usage_limit" binding:"omitempty,min=0"`
 	StartDate     time.Time `json:"start_date" binding:"required"`
 	EndDate       time.Time `json:"end_date" binding:"required"`
 	IsActive      bool      `json:"is_active"`
@@ -32,7 +32,7 @@ type UpdatePromoDTO struct {
 	Value         float64   `json:"value" binding:"omitempty,min=0"`
 	MinPurchase   float64   `json:"min_purchase"`
 	MaxDiscount   float64   `json:"max_discount"`
-	UsageLimit    int       `json:"usage_limit"`
+	UsageLimit    *int      `json:"usage_limit" binding:"omitempty,min=0"`
 	StartDate     time.Time `json:"start_date"`
 	EndDate       time.Time `json:"end_date"`
 	IsActive      bool      `json:"is_active"`

@@ -159,7 +159,7 @@ func (s *promoService) UpdatePromo(promoID string, input dto.UpdatePromoDTO) (pr
 		promo.Value = input.Value
 	}
 
-	// Update numeric fields (0 = unlimited/disabled)
+	// Usage limit: nil = unlimited, 0 = exhausted.
 	promo.MinPurchase = input.MinPurchase
 	promo.MaxDiscount = input.MaxDiscount
 	promo.UsageLimit = input.UsageLimit
@@ -200,7 +200,7 @@ func (s *promoService) GetActivePromosAt(now time.Time) ([]promo_model.Promo, er
 	// Filter: is_active = true, start_date <= now (sudah mulai), end_date >= now (belum berakhir), dan usage belum habis
 	// GORM secara default exclude soft deleted records (deleted_at IS NULL)
 	if err := config.DB.Where("is_active = ? AND start_date <= ? AND end_date >= ?", true, now, now).
-		Where("(usage_limit = 0 OR usage_count < usage_limit)").
+		Where("(usage_limit IS NULL OR usage_count < usage_limit)").
 		Where("(valid_days & ?) <> 0", 1<<uint(now.In(time.FixedZone("Asia/Jakarta", 7*60*60)).Weekday())).
 		Order("created_at DESC").
 		Find(&promos).Error; err != nil {
@@ -311,8 +311,8 @@ func validatePromoEligibility(promo promo_model.Promo, subtotal float64, now tim
 		return errors.New(promoValidDaysMessage(promo.ValidDays))
 	}
 
-	// Check: usage limit (0 = unlimited)
-	if promo.UsageLimit > 0 && promo.UsageCount >= promo.UsageLimit {
+	// Check: usage limit (nil = unlimited, 0 = exhausted)
+	if promo.UsageLimit != nil && promo.UsageCount >= *promo.UsageLimit {
 		return ErrPromoUsageLimitReached
 	}
 

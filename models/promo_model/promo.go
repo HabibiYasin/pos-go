@@ -18,7 +18,7 @@ type Promo struct {
 	Value         float64        `gorm:"type:decimal(15,2);not null" json:"value"`
 	MinPurchase   float64        `gorm:"type:decimal(15,2);default:0" json:"min_purchase"`
 	MaxDiscount   float64        `gorm:"type:decimal(15,2);default:0" json:"max_discount"` // 0 = unlimited
-	UsageLimit    int            `gorm:"type:int;default:0" json:"usage_limit"`            // 0 = unlimited
+	UsageLimit    *int           `gorm:"type:int" json:"usage_limit"`                      // nil = unlimited; 0 = exhausted
 	UsageCount    int            `gorm:"type:int;default:0" json:"usage_count"`
 	StartDate     time.Time      `gorm:"type:timestamp;not null" json:"start_date"`
 	EndDate       time.Time      `gorm:"type:timestamp;not null" json:"end_date"`

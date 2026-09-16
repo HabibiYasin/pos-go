@@ -188,7 +188,7 @@ func (s TransactionService) CreateTransaction(req dto.CreateTransactionRequest) 
 		// Increment atomik agar concurrent request tidak saling timpa
 		config.DB.Model(&promo_model.Promo{}).Where("id = ?", *appliedPromoID).Update("usage_count", gorm.Expr("usage_count + ?", 1))
 		var promo promo_model.Promo
-		if err := config.DB.First(&promo, "id = ?", *appliedPromoID).Error; err == nil && promo.UsageLimit > 0 && promo.UsageCount >= promo.UsageLimit {
+		if err := config.DB.First(&promo, "id = ?", *appliedPromoID).Error; err == nil && promo.UsageLimit != nil && promo.UsageCount >= *promo.UsageLimit {
 			config.DB.Model(&promo_model.Promo{}).Where("id = ?", *appliedPromoID).Update("is_active", false)
 		}
 	}
