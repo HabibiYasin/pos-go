@@ -6,38 +6,41 @@ import (
 
 // CreatePromoDTO untuk create promo baru
 type CreatePromoDTO struct {
-	ValidDays   *int      `json:"valid_days" binding:"omitempty,min=1,max=127"`
-	Code        string    `json:"code" binding:"required,min=3,max=50"`
-	Name        string    `json:"name" binding:"required,max=255"`
-	Description string    `json:"description"`
-	Type        string    `json:"type" binding:"required,oneof=percentage fixed"`
-	Value       float64   `json:"value" binding:"required,min=0"`
-	MinPurchase float64   `json:"min_purchase"`
-	MaxDiscount float64   `json:"max_discount"`
-	UsageLimit  int       `json:"usage_limit"`
-	StartDate   time.Time `json:"start_date" binding:"required"`
-	EndDate     time.Time `json:"end_date" binding:"required"`
-	IsActive    bool      `json:"is_active"`
+	ValidBranches *int      `json:"valid_branches" binding:"omitempty,min=1,max=7"`
+	ValidDays     *int      `json:"valid_days" binding:"omitempty,min=1,max=127"`
+	Code          string    `json:"code" binding:"required,min=3,max=50"`
+	Name          string    `json:"name" binding:"required,max=255"`
+	Description   string    `json:"description"`
+	Type          string    `json:"type" binding:"required,oneof=percentage fixed"`
+	Value         float64   `json:"value" binding:"required,min=0"`
+	MinPurchase   float64   `json:"min_purchase"`
+	MaxDiscount   float64   `json:"max_discount"`
+	UsageLimit    int       `json:"usage_limit"`
+	StartDate     time.Time `json:"start_date" binding:"required"`
+	EndDate       time.Time `json:"end_date" binding:"required"`
+	IsActive      bool      `json:"is_active"`
 }
 
 // UpdatePromoDTO untuk update promo
 type UpdatePromoDTO struct {
-	ValidDays   *int      `json:"valid_days" binding:"omitempty,min=1,max=127"`
-	Code        string    `json:"code" binding:"omitempty,min=3,max=50"`
-	Name        string    `json:"name" binding:"omitempty,max=255"`
-	Description string    `json:"description"`
-	Type        string    `json:"type" binding:"omitempty,oneof=percentage fixed"`
-	Value       float64   `json:"value" binding:"omitempty,min=0"`
-	MinPurchase float64   `json:"min_purchase"`
-	MaxDiscount float64   `json:"max_discount"`
-	UsageLimit  int       `json:"usage_limit"`
-	StartDate   time.Time `json:"start_date"`
-	EndDate     time.Time `json:"end_date"`
-	IsActive    bool      `json:"is_active"`
+	ValidBranches *int      `json:"valid_branches" binding:"omitempty,min=1,max=7"`
+	ValidDays     *int      `json:"valid_days" binding:"omitempty,min=1,max=127"`
+	Code          string    `json:"code" binding:"omitempty,min=3,max=50"`
+	Name          string    `json:"name" binding:"omitempty,max=255"`
+	Description   string    `json:"description"`
+	Type          string    `json:"type" binding:"omitempty,oneof=percentage fixed"`
+	Value         float64   `json:"value" binding:"omitempty,min=0"`
+	MinPurchase   float64   `json:"min_purchase"`
+	MaxDiscount   float64   `json:"max_discount"`
+	UsageLimit    int       `json:"usage_limit"`
+	StartDate     time.Time `json:"start_date"`
+	EndDate       time.Time `json:"end_date"`
+	IsActive      bool      `json:"is_active"`
 }
 
 // ValidatePromoDTO untuk validate promo code saat checkout
 type ValidatePromoDTO struct {
+	Branch    string  `json:"branch" binding:"required,oneof=jakarta-selatan depok tokyo"`
 	DebugDate string  `json:"debug_date"`
 	Code      string  `json:"code" binding:"required"`
 	Subtotal  float64 `json:"subtotal" binding:"required,min=0"`

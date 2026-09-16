@@ -37,8 +37,8 @@ type PromoService interface {
 	GetPromoByID(promoID string) (promo_model.Promo, error)
 	GetActivePromos() ([]promo_model.Promo, error)
 	GetActivePromosAt(now time.Time) ([]promo_model.Promo, error)
-	ValidatePromo(code string, subtotal float64) (promo_model.Promo, float64, error)
-	ValidatePromoAt(code string, subtotal float64, now time.Time) (promo_model.Promo, float64, error)
+	ValidatePromo(code string, subtotal float64, branch string) (promo_model.Promo, float64, error)
+	ValidatePromoAt(code string, subtotal float64, now time.Time, branch string) (promo_model.Promo, float64, error)
 }
 
 type promoService struct{}
@@ -76,6 +76,9 @@ func (s *promoService) CreatePromo(input dto.CreatePromoDTO) (promo_model.Promo,
 	}
 
 	// Simpan ke database
+	if input.ValidBranches != nil {
+		promo.ValidBranches = *input.ValidBranches
+	}
 	if input.ValidDays != nil {
 		promo.ValidDays = *input.ValidDays
 	}
@@ -169,6 +172,9 @@ func (s *promoService) UpdatePromo(promoID string, input dto.UpdatePromoDTO) (pr
 		promo.EndDate = input.EndDate
 	}
 
+	if input.ValidBranches != nil {
+		promo.ValidBranches = *input.ValidBranches
+	}
 	if input.ValidDays != nil {
 		promo.ValidDays = *input.ValidDays
 	}
@@ -229,11 +235,11 @@ func (s *promoService) DeletePromo(promoID string) error {
 }
 
 // ValidatePromo memvalidasi kode promo dan menghitung discount
-func (s *promoService) ValidatePromo(code string, subtotal float64) (promo_model.Promo, float64, error) {
-	return s.ValidatePromoAt(code, subtotal, time.Now())
+func (s *promoService) ValidatePromo(code string, subtotal float64, branch string) (promo_model.Promo, float64, error) {
+	return s.ValidatePromoAt(code, subtotal, time.Now(), branch)
 }
 
-func (s *promoService) ValidatePromoAt(code string, subtotal float64, now time.Time) (promo_model.Promo, float64, error) {
+func (s *promoService) ValidatePromoAt(code string, subtotal float64, now time.Time, branch string) (promo_model.Promo, float64, error) {
 	var promo promo_model.Promo
 	code = strings.TrimSpace(code)
 	if code == "" {
@@ -248,6 +254,9 @@ func (s *promoService) ValidatePromoAt(code string, subtotal float64, now time.T
 		return promo_model.Promo{}, 0, errors.New("Gagal memvalidasi promo")
 	}
 
+	if err := validatePromoBranch(promo.ValidBranches, branch); err != nil {
+		return promo_model.Promo{}, 0, err
+	}
 	if err := validatePromoEligibility(promo, subtotal, now); err != nil {
 		return promo_model.Promo{}, 0, err
 	}
@@ -330,4 +339,30 @@ func promoValidDaysMessage(days int) string {
 		}
 	}
 	return "voucher hanya berlaku hari: " + strings.Join(allowed, ", ")
+}
+
+// Branch bits: Jakarta Selatan=1, Depok=2, Tokyo=4.
+type PromoBranchError struct{ Message string }
+
+func (e *PromoBranchError) Error() string { return e.Message }
+
+func validatePromoBranch(allowed int, branch string) error {
+	bits := map[string]int{"jakarta-selatan": 1, "depok": 2, "tokyo": 4}
+	if bits[branch] == 0 {
+		return &PromoBranchError{Message: "Pilih cabang yang valid"}
+	}
+	if allowed&bits[branch] != 0 {
+		return nil
+	}
+	names := []string{}
+	for i, name := range []string{"Jakarta Selatan", "Depok", "Tokyo"} {
+		if allowed&(1<<uint(i)) != 0 {
+			names = append(names, name)
+		}
+	}
+	label := strings.Join(names, " dan ")
+	if len(names) == 3 {
+		label = names[0] + ", " + names[1] + " dan " + names[2]
+	}
+	return &PromoBranchError{Message: "Voucher hanya bisa digunakan di cabang: " + label}
 }

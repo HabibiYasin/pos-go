@@ -174,7 +174,7 @@ func ValidatePromo(c *gin.Context) {
 		utils.ErrorResponseBadRequest(c, "Tanggal debug tidak valid (gunakan YYYY-MM-DD)", nil)
 		return
 	}
-	promo, discount, err := promoService.ValidatePromoAt(input.Code, input.Subtotal, now)
+	promo, discount, err := promoService.ValidatePromoAt(input.Code, input.Subtotal, now, input.Branch)
 	if err != nil {
 		utils.ErrorResponseBadRequest(c, err.Error(), nil)
 		return

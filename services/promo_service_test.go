@@ -88,3 +88,26 @@ func TestPromoValidDaysMessage(t *testing.T) {
 		}
 	}
 }
+
+func TestPromoBranchValidation(t *testing.T) {
+	for _, tc := range []struct {
+		allowed      int
+		branch, want string
+	}{
+		{6, "jakarta-selatan", "Voucher hanya bisa digunakan di cabang: Depok dan Tokyo"},
+		{2, "tokyo", "Voucher hanya bisa digunakan di cabang: Depok"},
+		{5, "depok", "Voucher hanya bisa digunakan di cabang: Jakarta Selatan dan Tokyo"},
+		{6, "depok", ""}, {6, "tokyo", ""},
+		{7, "jakarta-selatan", ""}, {7, "depok", ""}, {7, "tokyo", ""},
+		{7, "", "Pilih cabang yang valid"}, {7, "invalid", "Pilih cabang yang valid"},
+	} {
+		err := validatePromoBranch(tc.allowed, tc.branch)
+		got := ""
+		if err != nil {
+			got = err.Error()
+		}
+		if got != tc.want {
+			t.Errorf("mask %d branch %s: got %q want %q", tc.allowed, tc.branch, got, tc.want)
+		}
+	}
+}

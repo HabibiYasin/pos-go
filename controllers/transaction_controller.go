@@ -47,6 +47,11 @@ func CreateTransaction(c *gin.Context) {
 
 	transaction, snapToken, snapURL, err := transactionService.CreateTransaction(req)
 	if err != nil {
+		var branchError *services.PromoBranchError
+		if errors.As(err, &branchError) {
+			utils.ErrorResponseBadRequest(c, err.Error(), nil)
+			return
+		}
 		if errors.Is(err, services.ErrInsufficientStock) {
 			utils.ErrorResponse(c, 409, err.Error(), nil)
 			return

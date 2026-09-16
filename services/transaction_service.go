@@ -94,7 +94,7 @@ func (s TransactionService) CreateTransaction(req dto.CreateTransactionRequest) 
 	// Jika ada promo_code, validasi dan hitung diskon
 	if req.PromoCode != "" {
 		promoService := NewPromoService()
-		promo, disc, err := promoService.ValidatePromo(req.PromoCode, subtotal)
+		promo, disc, err := promoService.ValidatePromo(req.PromoCode, subtotal, req.Branch)
 		if err != nil {
 			tx.Rollback()
 			return nil, "", "", err
